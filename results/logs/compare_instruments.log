@@ -1,0 +1,20 @@
+2nd contract, level difference OIS minus govt (bp): mean 4.4  sd 12.8  min -46.7  max 118.3
+by year: {2005: -0.0, 2006: 7.1, 2007: 7.0, 2008: 15.9, 2009: 4.2, 2010: -2.6, 2011: 9.2, 2012: 1.9, 2013: -2.0, 2014: -2.4}
+daily    changes: corr 0.37 | sd govt 4.7 bp, sd ois 2.9 bp | tracking error 4.6 bp | cumulative govt +726 vs ois +577 bp
+weekly   changes: corr 0.72 | sd govt 10.1 bp, sd ois 7.4 bp | tracking error 7.0 bp | cumulative govt +726 vs ois +577 bp
+monthly  changes: corr 0.90 | sd govt 27.0 bp, sd ois 21.1 bp | tracking error 12.4 bp | cumulative govt +726 vs ois +577 bp
+govt: 2nd-contract implied rate minus spot 3M Euribor, yearly mean (bp): {2005: 17.0, 2006: 45.0, 2007: 24.0, 2008: -1.0, 2009: 22.0, 2010: 20.0, 2011: 26.0, 2012: -0.0, 2013: 1.0, 2014: -6.0}
+ois: 2nd-contract implied rate minus spot 3M Euribor, yearly mean (bp): {2005: 17.0, 2006: 38.0, 2007: 17.0, 2008: -17.0, 2009: 17.0, 2010: 23.0, 2011: 17.0, 2012: -2.0, 2013: 3.0, 2014: -3.0}
+
+2008-01 to 2014-06, same positions, two instruments:
+                                              sharpe            ann_pnl_bp             maxdd_bp           
+instrument                                 OIS-based govt-curve  OIS-based govt-curve OIS-based govt-curve
+variant                                                                                                   
+BM long-only 2nd contract                       2.06       1.53     103.73     127.32   -195.58    -187.69
+BM follow-the-ECB (-sign of DFR 3M change)      1.10       1.03      55.63      86.12   -191.66    -162.29
+Prior composite, sign (R+M+I+S)                 1.60       1.19      80.74      99.16   -198.37    -196.35
+Prior composite, scaled (clip +/-2)             2.71       1.92      79.79     102.80    -45.39     -81.85
+Ridge all factors (a=10), sign                  1.20       1.16      58.79      95.26   -122.73    -194.10
+Logit direction (C=0.1), sign                   1.58       1.27      77.19     104.38   -106.40    -187.59
+
+composite monthly P&L: corr between instruments 0.89, mean abs difference 8.2 bp/month, sd of monthly P&L 30.6 bp

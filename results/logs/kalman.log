@@ -1,0 +1,36 @@
+                                              comp_sharpe_2008_26  comp_test  tau_train  anchored_test  anchored_wf_2008_26  anchored_2008_26_at_tau  override_months_2008_26  autocorr    sd  flips_per_yr  wf 2008-12  wf 2013-19  wf 2020-21  wf 2022-26
+variant                                                                                                                                                                                                                                                    
+unfiltered (current)                                         0.81       0.55        0.5           0.64                 0.87                     1.09                       16      0.89  0.42          2.06        1.21        0.21        0.08        1.01
+Kalman, q by ML (causal, yearly)                             0.95       0.54        0.3           0.39                 0.79                     0.72                       20      0.98  0.50          2.83        1.22        0.16       -0.21        0.80
+fixed gain K=0.5 (steady-state Kalman / EMA)                 0.60       0.30        0.4           0.64                 0.89                     1.11                       24      0.95  0.44          1.33        1.28        0.13        0.22        1.01
+fixed gain K=0.3 (steady-state Kalman / EMA)                 0.74       0.46        0.3           0.63                 0.89                     1.11                       30      0.97  0.45          1.25        1.28        0.14        0.15        1.00
+fixed gain K=0.2 (steady-state Kalman / EMA)                 0.85       0.42        0.5           0.63                 0.85                     0.85                       11      0.98  0.46          0.85        1.18        0.16        0.00        1.01
+fixed gain K=0.1 (steady-state Kalman / EMA)                 1.09       0.51        0.5           0.61                 0.77                     0.84                       10      0.99  0.50          0.36        1.18        0.16       -0.21        0.80
+
+ML noise ratio q (state var / obs var) chosen for 2026, by feature (small = heavy smoothing):
+s_epu_periph_chg3    0.0001
+s_ciss_chg3          0.0001
+s_epu_chg3           0.0001
+r_3m_minus_dfr       0.0063
+s_epu_periph         0.0063
+s_epu_z              0.0251
+s_periph_spread      0.0251
+s_ciss               0.0398
+i_core               0.0398
+i_unemp_chg6         0.0631
+s_esi_z              0.0631
+i_core_chg3          0.0631
+r_fut_mom3           0.0631
+s_periph_chg3        0.0631
+r_slope              0.0631
+r_fut_mom12          0.0631
+i_hicp               0.0631
+r_dfr_chg3           0.1000
+r_12m_chg3           0.1000
+r_slope_chg3         0.1000
+r_dfr_chg6           0.1000
+i_hicp_chg3          0.1000
+s_esi_chg3           0.1000
+
+correlation of Kalman composite with the unfiltered composite: 0.843 | lag-1 cross-corr (Kalman lags unfiltered): 0.878
+rule only, test 2014-26: 0.62 | 2008-26: 0.85

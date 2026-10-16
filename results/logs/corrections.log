@@ -1,0 +1,16 @@
+                                                   sharpe  ann_pnl_bp  maxdd_bp    hit  months_vs_ecb  rel_pnl_vs_ecb_bp  2008-12  2013-19  2020-21  2022-26
+variant                                                                                                                                                     
+Follow-the-ECB (anchor)                              0.85       58.40   -162.29  59.82              0               0.00     1.18     0.16    -0.22     1.03
+Composite (base)                                     0.79       54.64   -140.00  60.71            112             -43.14     1.46    -0.21     0.58     0.60
+Composite without M                                  0.81       56.12   -181.26  60.27            106             -15.22     1.28    -0.13     0.34     0.87
+ECB anchor, composite override |score|>0.25          0.94       64.73   -154.18  62.95             37             141.45     1.47     0.32    -0.20     0.92
+ECB anchor, composite override |score|>0.5           1.02       70.11   -132.83  61.61             17             225.07     1.66     0.16    -0.13     1.01
+ECB anchor, composite override |score|>0.75          1.06       73.25   -136.63  60.27              5             282.34     1.78     0.16    -0.46     1.05
+ECB anchor, composite-ex-M override |score|>0.25     0.93       64.26   -132.83  60.71             45             134.56     1.57     0.39    -0.11     0.75
+ECB anchor, composite-ex-M override |score|>0.5      1.09       74.96   -136.63  63.39             16             318.66     1.81     0.21     0.08     1.01
+ECB anchor, composite-ex-M override |score|>0.75     0.80       54.90   -162.29  60.27              9             -64.13     1.18     0.16    -0.21     0.87
+ECB anchor, stress override S>0.75 -> long           0.85       58.74   -215.37  59.82             10               8.41     1.20     0.16    -0.22     1.03
+ECB anchor, stress override S>1.0 -> long            0.95       65.49   -154.18  59.82              6             135.86     1.47     0.16    -0.22     1.03
+ECB anchor, stress S>1 long, inflation I<-1 short    0.94       65.05   -154.18  60.71             16             127.44     1.47     0.16    -0.21     1.01
+
+additional trials in this file: 10

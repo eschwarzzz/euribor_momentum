@@ -1,0 +1,62 @@
+credit-demand features first valid month:
+c_gfcf_bus_yoy      1998-12-31
+c_gfcf_bus_2q       1998-12-31
+c_gfcf_eq_yoy       1998-12-31
+c_gfcf_eq_accel     1999-06-30
+c_ind_mom12         1998-12-31
+c_ind_mom3          1998-12-31
+c_ind_breadth       1998-12-31
+c_ind_mom12_z       2001-11-30
+c_cag_mom12         1998-12-31
+c_cag_rel_ip        1998-12-31
+c_constr_mom12      1998-12-31
+c_bls_demand        2003-04-30
+c_bls_fix           2003-04-30
+c_bls_ltl           2003-04-30
+c_bls_demand_chg    2004-04-30
+
+2008-01 to 2026-08:
+                                                  sharpe  ann_pnl_bp  maxdd_bp    hit  corr_with_ecb  months_vs_ecb  rel_pnl_vs_ecb_bp  2008-12  2013-19  2020-21  2022-26
+variant                                                                                                                                                                   
+Follow-the-ECB (policy momentum)                    0.85       58.40   -162.29  59.82           1.00              0               0.00     1.18     0.16    -0.22     1.03
+BM trend 12M (price momentum)                       0.50       34.54   -242.70  54.02           0.48             52            -424.56     0.84    -0.45    -0.81     0.69
+Credit-demand block alone                           0.42       28.80   -265.55  48.21           0.00            123            -534.85     0.98    -0.65    -0.64     0.35
+  capex by industry alone                           0.56       38.83   -281.26  50.45           0.21             97            -321.50     0.93    -0.69     0.14     0.76
+  investment by asset alone                         0.77       52.93   -198.90  54.91           0.11            105             -84.25     1.92    -0.73    -0.43     0.37
+  BLS loan demand alone                             0.37       25.60   -207.30  48.66          -0.18            138            -612.37     0.97    -0.71    -0.42     0.21
+Composite R+I+S (ex money)                          0.81       56.12   -181.26  60.27           0.15            106             -15.22     1.28    -0.13     0.34     0.87
+Composite R+I+S+C                                   0.65       44.74   -181.26  54.91           0.12            113            -227.94     1.25    -0.49     0.31     0.56
+ECB anchor, R+I+S override >0.5 (current winner)    1.09       74.96   -136.63  63.39           0.80             16             318.66     1.81     0.21     0.08     1.01
+ECB anchor, R+I+S+C override >0.5                   1.03       71.01   -132.83  60.71           0.81             15             241.98     1.69     0.19    -0.21     1.01
+ECB anchor, C-only override >0.75                   0.96       66.29   -146.00  57.14           0.84             12             158.97     1.69    -0.13    -0.22     0.93
+
+new trials here: 8 (ECB rule, 12M trend and the R+I+S override were already counted)
+
+correlation of the C score with the other group scores (2008+):
+R    0.53
+M    0.24
+I    0.46
+S    0.15
+C    1.00
+
+C block: relative P&L vs the ECB rule by year (bp), positive = C's disagreement paid:
+date
+2008     56.0
+2009      0.0
+2010     48.0
+2011   -107.0
+2012    -94.0
+2013      0.0
+2014    -21.0
+2015    -49.0
+2016    -47.0
+2017    -23.0
+2018     -6.0
+2019     -3.0
+2020      4.0
+2021      6.0
+2022    -33.0
+2023    -82.0
+2024   -192.0
+2025    -28.0
+2026     36.0
