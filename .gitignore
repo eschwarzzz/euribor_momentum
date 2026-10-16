@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+build/
+
+# macOS
+.DS_Store
+
+# Regenerable large outputs (rebuild with `make backtest` / `make account`)
+daily_pnl_curves.csv
+mc_bootstrap_sharpe.csv
+bt50k_bootstrap.csv
+bt50k_5y_bootstrap.csv
+synthetic_euribor_futures.csv
+synthetic_euribor_futures_ois.csv
+
+# Raw API dumps kept locally only; the processed series next to them are committed
+*_raw.csv
+tic_slt3d_globl.csv
+
+# Rendered report formats and LaTeX intermediates
+*.html
+*.tex
+results/_*

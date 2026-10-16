@@ -1,0 +1,80 @@
+{
+ "subperiods": {
+  "2011-2015": {
+   "months": 57.0,
+   "Whole trend book": 0.08508683606479603,
+   "US rates sleeve": 0.023850497474541942
+  },
+  "2016-2020": {
+   "months": 60.0,
+   "Whole trend book": 0.036307757643648325,
+   "US rates sleeve": -0.14319219549386064
+  },
+  "2021-2026": {
+   "months": 64.0,
+   "Whole trend book": -0.020309470620427244,
+   "US rates sleeve": 0.16291963528074813
+  }
+ },
+ "bootstrap": {
+  "Whole trend book": {
+   "observed": 0.00995457726287416,
+   "p05": -0.07421469797743607,
+   "p50": 0.012660511332778034,
+   "p95": 0.13209182866341593
+  },
+  "US rates sleeve": {
+   "observed": 0.003795917154490054,
+   "p05": -0.09538507863269628,
+   "p50": 0.005282486675625907,
+   "p95": 0.13672724559546748
+  },
+  "Currency sleeve": {
+   "observed": 0.09068265955173473,
+   "p05": -0.015026163325710188,
+   "p50": 0.09363906487661347,
+   "p95": 0.24985690882087672
+  },
+  "Everything except rates": {
+   "observed": 0.00906616744777039,
+   "p05": -0.06342709580908078,
+   "p50": 0.011202450314980964,
+   "p95": 0.1180265759709037
+  }
+ },
+ "conditional": {
+  "trend book's 15 worst months": {
+   "euribor_mean_bp": 0.5158408635832734,
+   "euribor_share_positive": 0.4666666666666667,
+   "trend_mean_usd": -19623.235833333332
+  },
+  "trend book's 15 best months": {
+   "euribor_mean_bp": 3.877366450742818,
+   "euribor_share_positive": 0.6666666666666666,
+   "trend_mean_usd": 29481.025
+  },
+  "all months": {
+   "euribor_mean_bp": 3.2298594256064064,
+   "euribor_share_positive": 0.6077348066298343,
+   "trend_mean_usd": 1241.7027624309394
+  }
+ },
+ "combinations": {
+  "100/0": {
+   "sharpe": 0.3482475821550572,
+   "maxdd_in_annual_vols": -2.4276270126547628
+  },
+  "80/20": {
+   "sharpe": 0.5119373845043451,
+   "maxdd_in_annual_vols": -2.158936541570397
+  },
+  "50/50": {
+   "sharpe": 0.7535469427038228,
+   "maxdd_in_annual_vols": -1.2574231008574144
+  },
+  "0/100": {
+   "sharpe": 0.7227197677468943,
+   "maxdd_in_annual_vols": -1.0154336840306561
+  }
+ }
+}

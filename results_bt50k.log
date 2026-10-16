@@ -1,0 +1,283 @@
+walk-forward tau path: {2007: 1.0, 2008: 1.0, 2009: 0.5, 2010: 0.5, 2011: 0.5, 2012: 0.5, 2013: 0.5, 2014: 0.5, 2015: 0.5, 2016: 0.5, 2017: 0.5, 2018: 0.5, 2019: 0.5, 2020: 0.5, 2021: 0.5, 2022: 0.5, 2023: 0.5, 2024: 0.5, 2025: 0.5, 2026: 0.5}
+
+[0] Account results, EUR 50,000 start, Jan 2008 - Aug 2026, cost 0.3 bp per side:
+                                             final_equity    pnl_eur  cagr_pct  vol_pct  sharpe  sharpe_monthly  maxdd_pct  maxdd_eur  worst_month_pct  hit_pct
+Frozen spec, 10% vol target                     255768.52  205768.52      8.99    10.83    0.85            0.86     -20.09  -45443.09           -13.47    63.84
+Walk-forward threshold, 10% vol                 229305.72  179305.72      8.36    10.82    0.80            0.80     -19.40  -41039.19           -13.58    63.39
+Follow-the-ECB only, 10% vol                    173507.70  123507.70      6.78    10.82    0.66            0.66     -31.14  -42816.54           -13.44    60.27
+Long-only, 10% vol                               83507.11   33507.11      2.74    10.79    0.30            0.30     -52.68  -92887.56           -13.14    56.25
+12M trend, 10% vol                               85590.44   35590.44      2.88    11.18    0.31            0.31     -35.75  -35709.87           -13.41    54.46
+Frozen, 5% vol target                           100842.50   50842.50      3.77     5.37    0.72            0.72     -10.22   -8807.79            -8.24    62.50
+Frozen, 15% vol target                          471226.90  421226.90     12.56    16.37    0.80            0.82     -28.85 -129150.58           -20.59    63.84
+Frozen, 20% vol target                          999522.62  949522.62     17.11    23.02    0.80            0.86     -36.42 -387633.84           -26.75    63.84
+Frozen, 60-day vol only (no long-run blend)     230906.82  180906.82      8.40    13.35    0.67            0.68     -26.75  -51314.95           -18.91    63.39
+Frozen, fixed 1 contract                         84407.53   34407.53      2.80     2.79    1.00            0.90      -6.54   -3395.78            -4.12    63.84
+Frozen, fixed 3 contracts                       153222.60  103222.60      6.08     7.21    0.85            0.78     -18.24  -10187.34           -12.35    63.84
+Frozen, cost 0.5 bp/side                        228110.18  178110.18      8.33    10.85    0.79            0.80     -20.06  -42625.30           -13.72    62.95
+Frozen, cost 1 bp/side                          177585.28  127585.28      6.91    10.88    0.67            0.67     -20.50  -35443.66           -14.06    59.82
+Frozen, cost 2 bp/side                          111395.61   61395.61      4.31    11.15    0.43            0.44     -38.61  -46101.54           -14.62    54.46
+Frozen, start Jan 2002                          345033.25  295033.25      8.01    10.63    0.78            0.78     -20.10  -60186.56           -13.25    63.18
+Frozen, OIS-spliced prices 2005-14              257038.36  207038.36      9.02    10.66    0.86            0.82     -18.72  -46974.88           -15.67    63.39
+Follow-the-ECB, OIS-spliced prices              163594.96  113594.96      6.45    10.75    0.64            0.60     -33.09  -43469.98           -15.67    59.82
+                                             avg_contracts  max_contracts  avg_margin_pct  peak_margin_pct  peak_margin_stress_pct  fees_eur  contracts_traded
+Frozen spec, 10% vol target                          15.45           33.0            2.44             4.83                    4.83   22612.5            3015.0
+Walk-forward threshold, 10% vol                      13.89           30.0            2.44             4.84                    4.84   20362.5            2715.0
+Follow-the-ECB only, 10% vol                         12.58           25.0            2.44             4.87                    4.87   16897.5            2253.0
+Long-only, 10% vol                                   14.33           32.0            2.44             4.85                    5.06   18525.0            2470.0
+12M trend, 10% vol                                    8.13           16.0            2.42             4.78                    5.72   14400.0            1920.0
+Frozen, 5% vol target                                 3.96            8.0            1.21             2.45                    2.45    5782.5             771.0
+Frozen, 15% vol target                               34.87           94.0            3.65             7.35                    7.35   51285.0            6838.0
+Frozen, 20% vol target                               83.59          275.0            4.86             9.99                   12.26  123592.5           16479.0
+Frozen, 60-day vol only (no long-run blend)          20.08           73.0            3.33            13.99                   13.99   32295.0            4306.0
+Frozen, fixed 1 contract                              1.00            1.0            0.33             0.50                    2.31    1297.5             173.0
+Frozen, fixed 3 contracts                             3.00            3.0            0.64             1.70                    6.43    3892.5             519.0
+Frozen, cost 0.5 bp/side                             14.57           30.0            2.43             4.87                    4.87   35637.5            2851.0
+Frozen, cost 1 bp/side                               12.70           24.0            2.44             4.89                    4.89   61700.0            2468.0
+Frozen, cost 2 bp/side                                9.94           20.0            2.45             5.02                    5.02   95750.0            1915.0
+Frozen, start Jan 2002                               17.10           45.0            2.33             4.87                    4.87   33082.5            4411.0
+Frozen, OIS-spliced prices 2005-14                   16.90           35.0            2.76             5.41                    5.41   24757.5            3301.0
+Follow-the-ECB, OIS-spliced prices                   13.19           26.0            2.76             5.43                    5.43   17752.5            2367.0
+
+unit-position check on this window: Sharpe +1.05, +73 bp/yr, vol 69 bp, max DD -136 bp
+
+[0b] Frozen spec by calendar year (contracts signed, + long / - short):
+      pnl_eur  ret_pct  equity_end  avg_contracts  sigma_bp  peak_margin_pct
+date                                                                        
+2008   7646.5     15.3     57646.5           -2.0     104.8              1.7
+2009  32334.0     56.1     89980.5            4.9      79.9              2.1
+2010  18441.6     20.5    108422.1            8.0      52.2              2.1
+2011 -13859.2    -12.8     94562.9           -0.2      54.1              2.5
+2012  44203.4     46.7    138766.3           12.1      41.4              3.3
+2013 -10084.3     -7.3    128682.0           15.8      33.5              3.8
+2014   8304.1      6.5    136986.1           19.7      27.5              4.4
+2015   1191.5      0.9    138177.6           16.6      35.2              4.6
+2016   1687.0      1.2    139864.6           21.7      28.5              4.3
+2017  11763.0      8.4    151627.6           14.9      34.4              3.2
+2018  -1421.0     -0.9    150206.6           23.1      27.5              4.1
+2019  -1087.1     -0.7    149119.5           22.1      29.2              3.8
+2020    502.5      0.3    149622.0           17.9      35.8              3.6
+2021   2787.2      1.9    152409.3           -0.2      23.3              4.8
+2022  41928.4     27.5    194337.7          -11.6      77.2              3.5
+2023   7143.5      3.7    201481.2           -8.3     102.8              1.3
+2024  62056.7     30.8    263538.0            1.3      54.5              2.6
+2025   1497.7      0.6    265035.7           20.1      57.2              3.0
+2026  -9267.2     -3.5    255768.5           12.3      55.2              3.2
+
+[0c] Sub-period Sharpe (account returns):
+                                 2008-12 crisis  2013-19 ZLB/QE  2020-21 COVID  2022-26 hikes+cuts
+Frozen spec, 10% vol target                1.71            0.16           0.17                0.92
+Walk-forward threshold, 10% vol            1.56            0.14           0.16                0.91
+Follow-the-ECB only, 10% vol               1.50            0.10          -0.37                0.70
+Long-only, 10% vol                         1.96            0.11          -0.37               -0.90
+
+worst drawdown: -20.1% from 2011-01-03 to 2011-08-18, recovered 2012-04-02; longest time under water 980 trading days
+concentration: best 5 months = 36% of total P&L, best 10 = 59%; share of log growth 2008-12 63%, 2013-21 6%, 2022-26 32%
+direction flips 12, months with a resize 151 of 224; margin EUR mean 3,661, peak 7,821 on 2025-11-03; last position -17 contracts on equity 252,928
+realised vs target: account vol 10.8% vs 10%; forecast risk at entry mean 10.1%, range 8.4-11.7%; months flat (0 contracts) 0
+
+monthly account returns: 224 months, monthly-based Sharpe: {'Frozen spec': 0.86, 'Walk-forward threshold': 0.8, 'Follow-the-ECB': 0.66, 'Long-only': 0.3}
+
+[1] Block bootstrap (12-month blocks, 10,000 paths of 224 months) of realised Sharpe:
+                        mean   p05   p25   p50   p75   p95  prob_gt0  prob_beats_longonly  prob_beats_ecb
+Frozen spec             0.86  0.38  0.65  0.86  1.07  1.39      1.00                 0.97            0.97
+Walk-forward threshold  0.80  0.36  0.60  0.80  0.99  1.28      1.00                 0.96            0.93
+Follow-the-ECB          0.66  0.19  0.45  0.65  0.86  1.16      0.99                  NaN             NaN
+Long-only               0.30 -0.24  0.06  0.28  0.53  0.89      0.81                  NaN             NaN
+
+[1b] Bootstrap of the P&L path from EUR 50,000 (final equity after 224 months, drawdown, 1-year and 5-year P&L):
+                      Frozen spec  Walk-forward threshold  Follow-the-ECB   Long-only
+final_p05               95077.849               90364.681       65151.580   26683.831
+final_p25              162542.797              149964.443      110508.652   50242.650
+final_p50              248924.429              224035.737      168675.463   80360.335
+final_p75              386649.929              340225.014      258867.918  133412.999
+final_p95              746314.666              623255.405      503621.962  284391.269
+prob_end_below_start        0.002                   0.003           0.017       0.247
+cagr_p05                    3.503                   3.221           1.428      -3.308
+cagr_p50                    8.979                   8.366           6.731       2.575
+cagr_p95                   15.582                  14.472          13.172       9.760
+maxdd_p50                 -19.100                 -19.043         -23.559     -37.951
+maxdd_p05                 -31.812                 -31.742         -39.844     -62.959
+maxdd_p01                 -39.415                 -38.813         -48.140     -71.734
+prob_dd_gt20                0.442                   0.437           0.708       0.962
+prob_dd_gt30                0.076                   0.071           0.227       0.742
+pnl1y_p05               -5418.573               -5057.794       -5966.061   -9753.205
+pnl1y_p50                2672.720                2433.036        1896.763     288.553
+pnl1y_p95               25715.371               25356.529       23649.125   26134.412
+prob_loss_1y                0.246                   0.252           0.344       0.466
+pnl5y_p05               -2356.039               -2588.662       -7148.457  -16648.445
+pnl5y_p50               24861.478               23000.735       17613.804    5081.151
+pnl5y_p95               88992.936               81065.087       74441.438   61281.291
+prob_loss_5y                0.075                   0.079           0.151       0.389
+
+[2] No-skill nulls (direction shifted / block-permuted against the same returns and sizes), p = share of null Sharpes >= observed:
+                        observed  shift_mean  shift_sd  p_shift  perm_mean  perm_sd  perm_p95  p_perm
+Frozen spec                 0.86       0.082     0.342    0.000      0.089    0.269     0.509   0.000
+Walk-forward threshold      0.80       0.083     0.348    0.005      0.103    0.274     0.517   0.001
+Follow-the-ECB              0.66       0.138     0.323    0.042      0.141    0.246     0.506   0.007
+
+[3] Deflated Sharpe: expected max Sharpe under the null = 0.53 (45 trials) / 0.57 (70 trials), annualised
+                        sharpe  skew  kurt  dsr_45  dsr_70
+Frozen spec               0.86 -0.39  7.00    0.91    0.88
+Walk-forward threshold    0.80 -0.42  7.01    0.86    0.82
+Follow-the-ECB            0.66 -0.44  6.66    0.70    0.65
+Long-only                 0.30 -0.25  6.28    0.17    0.13
+
+
+===== LAST FIVE YEARS: fresh EUR 50,000 account, Sep 2021 - Aug 2026 (walk-forward threshold is 0.5 throughout = frozen spec) =====
+                                             final_equity   pnl_eur  cagr_pct  vol_pct  sharpe  sharpe_monthly  maxdd_pct  maxdd_eur  worst_month_pct  hit_pct
+Frozen spec, 10% vol target                      85454.83  35454.83     11.13    12.39    0.91            1.01     -16.37  -14990.26           -13.05    68.33
+Follow-the-ECB only, 10% vol                     73540.24  23540.24      7.89    12.71    0.66            0.68     -23.91  -13379.92           -13.59    63.33
+Long-only, 10% vol                               26029.22 -23970.78    -12.06    12.66   -0.95           -1.06     -48.03  -24037.92           -13.01    38.33
+12M trend, 10% vol                               64532.13  14532.13      5.15    12.59    0.46            0.49     -27.25  -22772.27           -13.02    58.33
+Frozen, 5% vol target                            67014.41  17014.41      5.94     6.18    0.96            1.04      -8.48   -5871.86            -6.86    68.33
+Frozen, 15% vol target                          108147.19  58147.19     16.40    18.98    0.90            0.99     -24.34  -29359.30           -19.83    68.33
+Frozen, 20% vol target                          134760.70  84760.70     21.56    25.37    0.90            0.99     -33.31  -53379.47           -27.08    68.33
+Frozen, 60-day vol only (no long-run blend)      85991.47  35991.47     11.27    12.93    0.89            0.94     -19.93  -19083.54           -16.20    68.33
+Frozen, fixed 1 contract                         61276.27  11276.27      4.09     3.99    1.02            1.09      -4.93   -2638.82            -2.41    68.33
+Frozen, fixed 3 contracts                        83828.81  33828.81     10.71    10.17    1.05            1.04     -13.55   -7916.45            -6.92    68.33
+Frozen, cost 0.5 bp/side                         83740.97  33740.97     10.69    12.44    0.88            0.96     -17.06  -15462.17           -13.36    68.33
+Frozen, cost 1 bp/side                           80083.00  30083.00      9.72    12.69    0.79            0.86     -18.84  -16662.17           -14.13    66.67
+Frozen, cost 2 bp/side                           73355.15  23355.15      7.84    12.90    0.65            0.71     -19.84  -16451.94           -14.29    61.67
+Follow-the-ECB, fixed 3 contracts                83517.39  33517.39     10.63    10.54    1.01            1.01     -15.27   -7916.45            -4.36    63.33
+                                             avg_contracts  max_contracts  avg_margin_pct  peak_margin_pct  peak_margin_stress_pct  fees_eur  contracts_traded
+Frozen spec, 10% vol target                           5.42           11.0            1.78             4.29                    4.29    2205.0             294.0
+Follow-the-ECB only, 10% vol                          4.72           10.0            1.79             4.55                    4.55    1957.5             261.0
+Long-only, 10% vol                                    2.73            9.0            1.83             4.55                    4.55    1065.0             142.0
+12M trend, 10% vol                                    4.95            9.0            1.78             4.29                    4.29    2460.0             328.0
+Frozen, 5% vol target                                 2.29            5.0            0.89             2.38                    2.38     930.0             124.0
+Frozen, 15% vol target                                9.83           22.0            2.69             6.68                    6.68    3982.5             531.0
+Frozen, 20% vol target                               15.74           37.0            3.56             9.09                    9.09    6442.5             859.0
+Frozen, 60-day vol only (no long-run blend)           6.05           17.0            1.97             8.13                    8.13    2692.5             359.0
+Frozen, fixed 1 contract                              1.00            1.0            0.42             0.48                    1.27     337.5              45.0
+Frozen, fixed 3 contracts                             3.00            3.0            1.02             1.44                    3.23    1012.5             135.0
+Frozen, cost 0.5 bp/side                              5.33           11.0            1.76             4.30                    4.30    3612.5             289.0
+Frozen, cost 1 bp/side                                5.28           11.0            1.78             4.33                    4.33    7125.0             285.0
+Frozen, cost 2 bp/side                                5.05           10.0            1.79             4.39                    4.39   13650.0             273.0
+Follow-the-ECB, fixed 3 contracts                     3.00            3.0            1.04             1.68                    3.26    1057.5             141.0
+
+unit-position check: frozen Sharpe +1.00, +89 bp/yr, vol 89 bp, max DD -106 bp | follow-the-ECB Sharpe +0.99, +88 bp/yr
+same window inside the 2008-start account: Sharpe +0.92, return +72.4%
+
+by calendar year (2021 = Sep-Dec, 2026 = Jan-Aug):
+      pnl_eur  ret_pct  equity_end  avg_contracts  avg_margin_pct  peak_margin_pct
+date                                                                              
+2021   1279.2      2.6     51279.2           -8.7             4.0              4.3
+2022  13708.8     26.7     64988.0           -3.8             1.6              3.3
+2023   2822.9      4.3     67811.0           -2.8             1.0              1.4
+2024  20064.9     29.6     87875.9            0.5             1.8              2.7
+2025    375.0      0.4     88250.9            6.7             1.8              3.0
+2026  -2796.0     -3.2     85454.8            3.9             1.9              3.1
+worst drawdown -16.4% from 2024-10-01 to 2026-03-24, recovered not yet; best 5 months = 65% of P&L; direction flips 2; override months 11; margin EUR mean 1,284, peak 2,607; fees 2,205
+            signal  sigma_bp  contracts  equity_start    ret
+date                                                        
+2021-08-31    -1.0    21.390       -9.0     50000.000  0.023
+2021-09-30    -1.0    22.150       -9.0     51144.383  0.030
+2021-10-31    -1.0    24.789       -9.0     52700.319 -0.013
+2021-11-30    -1.0    27.554       -8.0     52017.508 -0.014
+2021-12-31    -1.0    27.939       -7.0     51279.208  0.013
+2022-01-31    -1.0    30.887       -7.0     51935.723  0.005
+2022-02-28    -1.0    32.966       -6.0     52169.742  0.078
+2022-03-31    -1.0    48.162       -5.0     56250.135  0.017
+2022-04-30    -1.0    55.640       -4.0     57201.042 -0.014
+2022-05-31    -1.0    56.091       -4.0     56414.756  0.019
+2022-06-30    -1.0    79.245       -3.0     57511.580 -0.065
+2022-07-31    -1.0   113.342       -2.0     53793.944  0.107
+2022-08-31    -1.0   128.627       -2.0     59526.148  0.047
+2022-09-30    -1.0   127.458       -2.0     62299.778  0.035
+2022-10-31    -1.0   112.385       -2.0     64501.171 -0.013
+2022-11-30    -1.0   113.470       -2.0     63654.751  0.021
+2022-12-31    -1.0    89.434       -3.0     64988.022 -0.010
+2023-01-31    -1.0   112.586       -2.0     64314.049  0.019
+2023-02-28    -1.0   109.029       -2.0     65530.866 -0.014
+2023-03-31    -1.0   145.391       -2.0     64613.970  0.022
+2023-04-30    -1.0   143.220       -2.0     66008.868  0.012
+2023-05-31    -1.0   145.368       -2.0     66775.917  0.018
+2023-06-30    -1.0    96.371       -3.0     67967.433  0.005
+2023-07-31    -1.0    82.958       -3.0     68287.510  0.019
+2023-08-31    -1.0    77.793       -4.0     69559.476  0.010
+2023-09-30    -1.0    75.183       -4.0     70230.363 -0.026
+2023-10-31    -1.0    77.094       -4.0     68394.152  0.006
+2023-11-30    -1.0    79.281       -3.0     68787.818 -0.014
+2023-12-31    -1.0    73.409       -4.0     67810.972  0.028
+2024-01-31    -1.0    64.021       -4.0     69714.804  0.069
+2024-02-29    -1.0    53.449       -6.0     74532.952  0.009
+2024-03-31    -1.0    50.455       -6.0     75168.360  0.050
+2024-04-30    -1.0    42.449       -7.0     78901.796  0.026
+2024-05-31    -1.0    37.913       -9.0     80938.490  0.016
+2024-06-30     1.0    38.602        9.0     82214.173  0.005
+2024-07-31     1.0    36.521        9.0     82654.772  0.056
+2024-08-31     1.0    55.430        6.0     87272.883  0.035
+2024-09-30     1.0    62.713        6.0     90356.327 -0.045
+2024-10-31     1.0    69.315        5.0     86259.448  0.024
+2024-11-30     1.0    69.501        5.0     88332.172 -0.005
+2024-12-31     1.0    68.315        5.0     87875.891 -0.014
+2025-01-31     1.0    69.211        5.0     86678.698 -0.007
+2025-02-28     1.0    68.259        5.0     86058.548  0.013
+2025-03-31     1.0    54.986        6.0     87188.742  0.025
+2025-04-30     1.0    70.592        5.0     89388.973  0.010
+2025-05-31     1.0    74.623        5.0     90282.418  0.001
+2025-06-30     1.0    73.895        5.0     90399.736 -0.015
+2025-07-31     1.0    55.122        6.0     89042.506 -0.005
+2025-08-31     1.0    44.986        8.0     88603.897 -0.005
+2025-09-30     1.0    41.096        9.0     88170.878 -0.001
+2025-10-31     1.0    31.832       11.0     88090.544 -0.007
+2025-11-30     1.0    33.480       10.0     87497.645  0.009
+2025-12-31     1.0    34.378       10.0     88250.877  0.013
+2026-01-31     1.0    35.281       10.0     89404.186  0.013
+2026-02-28     1.0    35.334       10.0     90557.394 -0.131
+2026-03-31     1.0    59.730        5.0     78737.909  0.010
+2026-04-30     1.0    73.940        4.0     79506.683  0.010
+2026-05-31     1.0    78.620        4.0     80336.283  0.009
+2026-06-30    -1.0    63.640       -5.0     81089.973  0.041
+2026-07-31    -1.0    60.639       -6.0     84454.568  0.012
+rolling 60-month Sharpe of the 2008-start account: latest +1.00, min +0.04, median +0.63, max +1.73, share of windows below the latest 76% of 165
+
+monthly account returns: 60 months, monthly-based Sharpe: {'Frozen spec': 1.01, 'Follow-the-ECB': 0.68, 'Long-only': -1.06}
+Sharpe by calendar year (account returns at a 10% vol target; last two columns one fixed contract):
+               Frozen spec  Follow-the-ECB  Long-only  Frozen spec, 1 contract  Follow-the-ECB, 1 contract
+date                                                                                                      
+2021                  0.90           -1.39      -1.39                     0.73                       -1.16
+2022                  1.61            0.94      -1.78                     1.83                        1.91
+2023                  0.40            0.51      -0.28                     0.51                        0.51
+2024                  2.27            2.35      -1.05                     2.29                        2.29
+2025                  0.09            0.08       0.08                     0.04                        0.04
+2026                 -0.25           -0.27      -1.42                     0.39                        0.39
+all 60 months         0.91            0.66      -0.95                     1.00                        0.99
+[1] Block bootstrap (12-month blocks, 10,000 paths of 60 months) of realised Sharpe:
+                mean   p05   p25   p50   p75   p95  prob_gt0  prob_beats_longonly  prob_beats_ecb
+Frozen spec     1.05  0.29  0.74  1.05  1.37  1.81      0.99                  1.0            0.81
+Follow-the-ECB  0.71 -0.12  0.35  0.70  1.06  1.60      0.92                  NaN             NaN
+Long-only      -1.07 -1.56 -1.30 -1.10 -0.87 -0.48      0.00                  NaN             NaN
+[1b] Bootstrap of the P&L path (final equity after 60 months, drawdown, 1-year P&L):
+                      Frozen spec  Follow-the-ECB  Long-only
+final_p05               56779.370       44632.468  18133.614
+final_p25               73092.283       59487.714  22074.620
+final_p50               86204.767       73399.082  25652.202
+final_p75              100627.583       90385.410  30193.839
+final_p95              124028.999      119589.822  38390.239
+prob_end_below_start        0.015           0.102      0.997
+cagr_p05                    2.576          -2.246    -18.360
+cagr_p50                   11.510           7.980    -12.495
+cagr_p95                   19.925          19.054     -5.147
+maxdd_p50                 -13.052         -16.683    -50.907
+maxdd_p05                 -20.168         -30.767    -64.541
+maxdd_p01                 -24.795         -37.207    -68.691
+prob_dd_gt20                0.052           0.331      0.992
+prob_dd_gt30                0.003           0.059      0.950
+pnl1y_p05               -5149.220       -5702.800 -11859.051
+pnl1y_p50                7434.503        4589.453  -6636.935
+pnl1y_p95               13471.373       17323.949   2562.766
+prob_loss_1y                0.204           0.343      0.852
+pnl5y_p05                6779.370       -5367.532 -31866.386
+pnl5y_p50               36204.767       23399.082 -24347.798
+pnl5y_p95               74028.999       69589.822 -11609.761
+prob_loss_5y                0.015           0.102      0.997
+[2] No-skill nulls, 6-month blocks:
+                observed  shift_mean  shift_sd  p_shift  perm_mean  perm_sd  perm_p95  p_perm
+Frozen spec        1.014       0.019     0.368      0.0      0.140    0.360     0.745   0.008
+Follow-the-ECB     0.685      -0.303     0.457      0.0     -0.195    0.373     0.407   0.009
+[3] Deflated Sharpe on 60 months:
+                sharpe  skew  kurt  dsr_45  dsr_70
+Frozen spec       1.01 -0.84  8.46    0.82    0.80
+Follow-the-ECB    0.68 -0.52  8.03    0.62    0.59
+Long-only        -1.06 -1.28  6.09    0.00    0.00

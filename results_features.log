@@ -1,0 +1,92 @@
+/Users/user/Desktop/euribor_macro/features.py:63: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  ilm = ecb("eurosystem_assets_w"); ilm.index = ilm.index + pd.Timedelta(days=7)
+(334, 44)
+u_2y_minus_eu12m        1998-12-31
+r_slope                 1998-12-31
+s_periph_spread         1998-12-31
+r_3m_minus_dfr          1999-01-31
+s_ciss                  1999-01-31
+i_hicp                  1999-01-31
+u_2y_chg3               1999-03-31
+r_slope_chg3            1999-03-31
+r_12m_chg3              1999-03-31
+r_fut_mom3              1999-03-31
+s_periph_chg3           1999-03-31
+u_ff_chg3               1999-03-31
+s_esi_chg3              1999-04-30
+s_ciss_chg3             1999-04-30
+s_epu_chg3              1999-04-30
+i_hicp_chg3             1999-04-30
+r_dfr_chg3              1999-04-30
+m_ecb_bs_chg3           1999-04-30
+r_dfr_chg6              1999-07-31
+m_m3_6m_ann             1999-07-31
+r_fut_mom12             1999-12-31
+d_nonea_yoy             2000-01-31
+d_ea_yoy                2000-01-31
+d_ea_minus_nonea        2000-01-31
+m_ecb_bs_yoy            2000-01-31
+m_m1_yoy                2000-01-31
+m_real_m1               2000-01-31
+m_m3_yoy                2000-01-31
+d_nonea_share_chg12     2000-01-31
+d_bis_usd_share_chg12   2000-02-29
+d_bis_usd_yoy           2000-02-29
+d_bis_eur_yoy           2000-02-29
+m_m3_accel              2000-07-31
+i_unemp_chg6            2000-09-30
+i_core                  2001-01-31
+s_epu_periph            2001-02-28
+i_core_chg3             2001-04-30
+s_epu_periph_chg3       2001-05-31
+s_epu_z                 2001-12-31
+s_esi_z                 2001-12-31
+d_tic_share_chg12       2003-03-31
+d_tic_core_yoy          2003-03-31
+d_tic_all_yoy           2003-03-31
+m_loans_yoy             2004-02-29
+date                   2026-08-31  2026-09-30
+r_dfr_chg3               0.250000    0.250000
+r_dfr_chg6               0.250000    0.500000
+r_slope                  0.410000    0.709000
+r_slope_chg3            -0.126000    0.305000
+r_12m_chg3               0.199000    0.603000
+r_3m_minus_dfr           0.343000    0.122000
+r_fut_mom3              -0.260383   -0.351219
+r_fut_mom12             -0.489413   -0.483979
+m_m1_yoy                 4.281208         NaN
+m_m3_yoy                 3.966300         NaN
+m_loans_yoy              2.947332         NaN
+m_m3_6m_ann              3.536122         NaN
+m_m3_accel               0.785581         NaN
+m_real_m1                1.381208         NaN
+m_ecb_bs_yoy            -2.852826   -2.875420
+m_ecb_bs_chg3           -4.521054   -3.685811
+d_nonea_share_chg12      0.580922         NaN
+d_nonea_yoy              9.914659         NaN
+d_ea_yoy                 6.892529         NaN
+d_ea_minus_nonea        -3.022130         NaN
+d_tic_core_yoy          -2.869954   -8.046440
+d_tic_all_yoy            5.565427    0.711940
+d_tic_share_chg12        0.703402    0.141865
+d_bis_usd_share_chg12   -1.097260   -1.097260
+d_bis_usd_yoy           12.645037   12.645037
+d_bis_eur_yoy           18.294602   18.294602
+i_hicp                   2.900000    3.200000
+i_core                   2.500000    2.400000
+i_hicp_chg3             -0.100000    0.000000
+i_core_chg3              0.300000   -0.200000
+i_unemp_chg6             0.000000    0.000000
+s_epu_z                  1.390984    1.212507
+s_epu_chg3             -28.238354  -32.429060
+s_epu_periph          -143.211386 -141.245904
+s_epu_periph_chg3       -2.795106  -21.176447
+s_periph_spread          0.623000         NaN
+s_periph_chg3            0.004500         NaN
+s_ciss                   0.020450    0.025181
+s_ciss_chg3              0.014689    0.015428
+s_esi_z                 -0.317676   -0.185590
+s_esi_chg3               3.400000    4.200000
+u_2y_chg3                0.360000    0.570000
+u_ff_chg3                0.010000    0.250000
+u_2y_minus_eu12m         1.337000    1.379000
