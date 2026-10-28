@@ -5,6 +5,8 @@
 3. Deflated Sharpe ratio (Bailey and Lopez de Prado) for the number of variants tried.
 4. Combinatorial purged cross-validation (CPCV) of the fitted models -> Sharpe across backtest paths.
 5. Nested walk-forward: ridge alpha chosen each month on an inner validation window only.
+6. Synthetic price error: the error of the synthetic against real Eurex settlements, measured, then added to the whole
+   history as an AR(1) process -> the range of one-contract Sharpe ratios the pricing error allows.
 """
 import itertools
 import json
@@ -12,12 +14,13 @@ import warnings
 
 import numpy as np
 import pandas as pd
+from scipy.signal import lfilter
 from scipy.stats import kurtosis, norm, skew
 from sklearn.linear_model import LogisticRegression, Ridge
 
 from .backtest import daily_pnl, metrics
-from .config import (COMPOSITE, COMPOSITE_SCALED, ECB_RULE, LOGIT, LONG_ONLY, OOS_END, OOS_START, RESULTS, RIDGE_10,
-                     RIDGE_100, TICK_COST)
+from .config import (COMPOSITE, COMPOSITE_SCALED, ECB_RULE, ECB_RULE_DFR, LOGIT, LONG_ONLY, OOS_END, OOS_START, PROCESSED, RAW,
+                     RESULTS, RIDGE_10, RIDGE_100, SPEC, SPEC_V1, TICK_COST)
 from .data import core_feature_columns, load_continuous, load_features, load_pnl_curves, load_positions, sharpe_monthly
 
 warnings.filterwarnings("ignore")
@@ -149,8 +152,42 @@ def nested_walk_forward(F, y, cols, alphas=(1, 10, 100, 1000), min_train=72, inn
     return np.sign(preds), pd.Series(chosen)
 
 
-KEYS = {"Long-only": LONG_ONLY, "Follow-the-ECB": ECB_RULE, "Composite ±1": COMPOSITE, "Composite scaled": COMPOSITE_SCALED,
-        "Ridge a=10": RIDGE_10, "Ridge a=100": RIDGE_100, "Logit": LOGIT}
+def synthetic_error():
+    """Synthetic minus real Eurex settlement for the 2nd quarterly contract, contracts matched by expiry month.
+
+    Returns the daily error (bp) and the daily price changes of both on days the contract did not change.
+    """
+    real = pd.read_csv(RAW / "eurex_feu3_history.csv", parse_dates=["date", "expiry"])
+    real = real[real["expiry"].dt.month.isin([3, 6, 9, 12])]
+    syn = pd.read_csv(PROCESSED / "synthetic_euribor_futures.csv", parse_dates=["date", "expiry"])
+    syn = syn[syn["rank"] == 1]
+    real["month"], syn["month"] = real["expiry"].dt.to_period("M"), syn["expiry"].dt.to_period("M")
+    both = syn[["date", "month", "price"]].merge(real[["date", "month", "settle"]], on=["date", "month"]).set_index("date").sort_index()
+    same = both["month"].eq(both["month"].shift())
+    changes = pd.DataFrame({"synthetic": both["price"].diff(), "real": both["settle"].diff()})[same]
+    return (both["price"] - both["settle"]) * 100, changes
+
+
+def error_sharpe(positions, cont, rng, sd_bp, phi, n=1000, start=OOS_START, end=OOS_END):
+    """One-contract Sharpe of each position path with ``n`` draws of an AR(1) price error (stationary sd ``sd_bp``,
+    persistence ``phi``) added to the synthetic price, positions unchanged. Pessimistic: the error only adds variance."""
+    T = len(cont)
+    shocks = rng.standard_normal((n, T)) * sd_bp * np.sqrt(1 - phi ** 2)
+    shocks[:, 0] /= np.sqrt(1 - phi ** 2)                          # the first value is drawn at the stationary spread
+    error = lfilter([1.0], [1.0, -phi], shocks, axis=1)
+    d_error = np.diff(error, axis=1, prepend=error[:, :1]) / 100   # points
+    window = (cont.index >= pd.Timestamp(start)) & (cont.index <= pd.Timestamp(end))
+    out = {}
+    for name, pos in positions.items():
+        pnl, pos_d = daily_pnl(pos, cont)
+        x = (pnl.values + pos_d.values * d_error)[:, window]
+        out[name] = x.mean(1) / x.std(1) * np.sqrt(252)
+    return out
+
+
+KEYS = {"Long-only": LONG_ONLY, "Follow-the-ECB": ECB_RULE, "Follow-the-ECB, DFR only": ECB_RULE_DFR, "Frozen spec": SPEC,
+        "v1 spec": SPEC_V1, "Composite ±1": COMPOSITE, "Composite scaled": COMPOSITE_SCALED, "Ridge a=10": RIDGE_10,
+        "Ridge a=100": RIDGE_100, "Logit": LOGIT}
 CPCV_MODELS = [("ridge", 10, "Ridge a=10"), ("ridge", 100, "Ridge a=100"), ("logit", 0.1, "Logit")]
 
 
@@ -169,8 +206,9 @@ def main():
     boot = {k: block_bootstrap_sharpe(M[k], rng) for k in M.columns}
     B = pd.DataFrame({k: dict(mean=v.mean(), p05=np.percentile(v, 5), p50=np.percentile(v, 50), p95=np.percentile(v, 95),
                               prob_gt0=(v > 0).mean()) for k, v in boot.items()}).T
-    B.loc["Composite ±1", "prob_beats_longonly"] = (boot["Composite ±1"] - boot["Long-only"] > 0).mean()
-    B.loc["Composite ±1", "prob_beats_ecb"] = (boot["Composite ±1"] - boot["Follow-the-ECB"] > 0).mean()
+    for k in ["Frozen spec", "v1 spec", "Composite ±1"]:
+        B.loc[k, "prob_beats_longonly"] = (boot[k] - boot["Long-only"] > 0).mean()
+        B.loc[k, "prob_beats_ecb"] = (boot[k] - boot["Follow-the-ECB"] > 0).mean()
     print("\n[1] Block bootstrap (12-month blocks, 10,000 draws) of realised Sharpe:")
     print(B.round(2).to_string())
     pd.DataFrame(boot).to_csv(RESULTS / "mc_bootstrap_sharpe.csv", index=False)
@@ -178,7 +216,7 @@ def main():
     # 2. no-skill nulls
     y_bp = y.loc[window] * 100
     nulls = {}
-    for k in ["Composite ±1", "Follow-the-ECB", "Ridge a=10", "Logit"]:
+    for k in ["Frozen spec", "Follow-the-ECB", "v1 spec", "Composite ±1", "Ridge a=10", "Logit"]:
         nulls[k], _ = no_skill_nulls(positions[KEYS[k]].loc[window], y_bp, rng)
     N = pd.DataFrame(nulls).T
     print("\n[2] No-skill nulls (positions shifted / block-permuted against the same returns), p = share of null Sharpes >= observed:")
@@ -190,7 +228,7 @@ def main():
     trial_sr = M_all.apply(lambda s: s.mean() / s.std()).dropna()
     sr0 = expected_max_sharpe(trial_sr)
     print(f"\n[3] Deflated Sharpe: {len(trial_sr)} trials, expected max Sharpe under the null = {sr0 * np.sqrt(12):.2f} (annualised)")
-    for k in ["Composite ±1", "Composite scaled", "Follow-the-ECB", "Ridge a=10", "Ridge a=100", "Logit"]:
+    for k in ["Frozen spec", "v1 spec", "Follow-the-ECB", "Composite ±1", "Composite scaled", "Ridge a=10", "Ridge a=100", "Logit"]:
         print(f"   {k:32s} Sharpe {sharpe_monthly(M[k]):+.2f}  P(true Sharpe > 0 after deflation) = {deflated_sharpe(M[k], sr0):.2f}")
     best = M_all.apply(sharpe_monthly).idxmax()
     print(f"   {'best of all (' + best + ')':32s} Sharpe {sharpe_monthly(M_all[best]):+.2f}  "
@@ -230,6 +268,27 @@ def main():
     print("   alpha chosen, share of months:", chosen.value_counts(normalize=True).round(2).to_dict())
     chosen.to_csv(RESULTS / "nested_alpha_choices.csv")
     pd.DataFrame({"pos": pos_nested}).to_csv(RESULTS / "nested_positions.csv")
+
+    # 6. synthetic price error
+    error, changes = synthetic_error()
+    sd_bp, phi = error.std(), error.autocorr(1)
+    measured = dict(days=len(error), first=str(error.index[0].date()), last=str(error.index[-1].date()), mean_bp=error.mean(), sd_bp=sd_bp,
+                    ar1=phi, change_corr=changes.corr().iloc[0, 1], change_days=len(changes))
+    print(f"\n[6] Synthetic minus real Eurex, 2nd contract matched by expiry month, {measured['days']} days ({measured['first']} to "
+          f"{measured['last']}): mean {measured['mean_bp']:+.1f} bp, sd {sd_bp:.1f} bp, AR(1) {phi:.2f}; daily change correlation "
+          f"{measured['change_corr']:.2f} ({measured['change_days']} days)")
+    cont = load_continuous()
+    names = ["Frozen spec", "Follow-the-ECB", "v1 spec", "Follow-the-ECB, DFR only", "Long-only"]
+    rows = {k: {"none": metrics(*daily_pnl(positions[KEYS[k]], cont))["sharpe"]} for k in names}
+    for label, size in [("measured", sd_bp), ("twice", 2 * sd_bp)]:
+        draws = error_sharpe({k: positions[KEYS[k]] for k in names}, cont, np.random.default_rng(7), size, phi)
+        for k, v in draws.items():
+            rows[k].update({f"{label}_p05": np.percentile(v, 5), f"{label}_p50": np.percentile(v, 50), f"{label}_p95": np.percentile(v, 95)})
+    E = pd.DataFrame(rows).T
+    print("    one-contract Sharpe with the error added to the whole history (1,000 draws each):")
+    print(E.round(2).to_string())
+    E.to_csv(RESULTS / "synthetic_error_sharpe.csv")
+    json.dump({k: float(v) if not isinstance(v, str) else v for k, v in measured.items()}, open(RESULTS / "synthetic_error.json", "w"), indent=1)
 
 
 if __name__ == "__main__":

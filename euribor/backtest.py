@@ -11,10 +11,11 @@ import numpy as np
 import pandas as pd
 from sklearn.linear_model import Lasso, LogisticRegression, Ridge
 
-from .config import (COMPOSITE, COMPOSITE_SCALED, ECB_RULE, LOGIT, LONG_ONLY, MIN_TRAIN_MONTHS, OOS_END, OOS_START,
-                     RESULTS, RIDGE_10, RIDGE_100, SUBPERIODS, TICK_COST, TREND_12M, TREND_3M, PLACEBO)
+from .config import (COMPOSITE, COMPOSITE_SCALED, ECB_RULE, ECB_RULE_DFR, LOGIT, LONG_ONLY, MIN_TRAIN_MONTHS, OOS_END, OOS_START,
+                     RESULTS, RIDGE_10, RIDGE_100, SCORE5, SPEC, SPEC_V1, SPEC_V1_BOTH, SUBPERIODS, TICK_COST, TREND_12M, TREND_3M,
+                     PLACEBO)
 from .data import core_feature_columns, load_continuous, load_features
-from .signals import follow_the_ecb, prior_composite
+from .signals import factor_score, follow_the_ecb, follow_the_ecb_dfr, frozen_spec, prior_composite, risk_score
 
 warnings.filterwarnings("ignore")
 
@@ -132,11 +133,12 @@ def run_variants(F, y, y0, cont):
         positions[name] = pos_m
 
     # Benchmarks
-    ecb = follow_the_ecb(F)
+    ecb, ecb_dfr = follow_the_ecb(F), follow_the_ecb_dfr(F)
     add(LONG_ONLY, pd.Series(1.0, index=F.index), note="benchmark")
     add(TREND_3M, np.sign(F["r_fut_mom3"]), note="benchmark")
     add(TREND_12M, np.sign(F["r_fut_mom12"]), note="benchmark")
     add(ECB_RULE, ecb, note="benchmark")
+    add(ECB_RULE_DFR, ecb_dfr, note="v1 anchor")
 
     # Prior-sign composite (no fitting)
     comp, groups = prior_composite(F, core)
@@ -156,6 +158,13 @@ def run_variants(F, y, y0, cont):
     add("Prior composite, 3M smoothed signal", np.sign(comp).rolling(3).mean(), note="holding period")
     add("Prior composite, cost 1bp/side", np.sign(comp), cost=0.01, note="cost sensitivity")
     add("Prior composite, cost 2bp/side", np.sign(comp), cost=0.02, note="cost sensitivity")
+
+    # The anchored specifications: v1 as reported in September, the anchor fix alone, and the frozen v2
+    score1, score5 = risk_score(groups), factor_score(F)
+    add(SCORE5, np.sign(score5), note="no fitting")
+    add(SPEC_V1, frozen_spec(ecb_dfr, score1), note="v1 spec")
+    add(SPEC_V1_BOTH, frozen_spec(ecb, score1), note="anchor fix only")
+    add(SPEC, frozen_spec(ecb, score5), note="frozen spec")
 
     # Fitted models, walk-forward
     ridge_pos, ridge_pred, ridge_coef = walk_forward(F, y, core, "ridge", alpha=10)
@@ -182,7 +191,7 @@ def run_variants(F, y, y0, cont):
     add("Ridge all, FRONT contract", walk_forward(F, y0, core, "ridge", alpha=10)[0], rank=0, note="contract choice")
 
     table = pd.DataFrame(results).T
-    keys = [LONG_ONLY, TREND_12M, ECB_RULE, COMPOSITE, COMPOSITE_SCALED, "Prior composite, user factors only (R+M+S)",
+    keys = [LONG_ONLY, TREND_12M, ECB_RULE_DFR, ECB_RULE, SPEC_V1, SPEC, COMPOSITE, COMPOSITE_SCALED, "Prior composite, user factors only (R+M+S)",
             RIDGE_10, RIDGE_100, LOGIT, "Combo: prior sign + follow-the-ECB (avg)"]
     subperiods = subperiod_table(curves, keys)
     return table, subperiods, ridge_coef, groups, curves, positions

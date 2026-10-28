@@ -1,0 +1,17 @@
+warning: texput.tex:141: Overfull \hbox (9.8542pt too wide) in paragraph at lines 140--141
+warning: texput.tex:222: Overfull \hbox (13.76373pt too wide) in paragraph at lines 222--222
+warning: texput.tex:229: Overfull \hbox (9.23573pt too wide) in paragraph at lines 229--229
+warning: texput.tex:234: Overfull \hbox (10.20374pt too wide) in paragraph at lines 234--234
+warning: texput.tex:239: Overfull \hbox (7.09174pt too wide) in paragraph at lines 239--239
+warning: accessing absolute path `/private/var/folders/0w/17m_gvp50qjcvg7mxrp8dzqh0000gp/T/media-d6df9f654847c046/figures/fig6_bt50k_equity.png`; build may not be reproducible in other environments
+warning: accessing absolute path `/private/var/folders/0w/17m_gvp50qjcvg7mxrp8dzqh0000gp/T/media-d6df9f654847c046/figures/fig7_bt50k_signal_vol_margin.png`; build may not be reproducible in other environments
+warning: texput.tex:667: Overfull \hbox (12.99554pt too wide) in paragraph at lines 666--667
+warning: accessing absolute path `/private/var/folders/0w/17m_gvp50qjcvg7mxrp8dzqh0000gp/T/media-d6df9f654847c046/figures/fig8_bt50k_montecarlo.png`; build may not be reproducible in other environments
+warning: texput.tex:141: Overfull \hbox (9.8542pt too wide) in paragraph at lines 140--141
+warning: texput.tex:222: Overfull \hbox (13.76373pt too wide) in paragraph at lines 222--222
+warning: texput.tex:229: Overfull \hbox (9.23573pt too wide) in paragraph at lines 229--229
+warning: texput.tex:234: Overfull \hbox (10.20374pt too wide) in paragraph at lines 234--234
+warning: texput.tex:239: Overfull \hbox (7.09174pt too wide) in paragraph at lines 239--239
+warning: texput.tex:667: Overfull \hbox (12.99554pt too wide) in paragraph at lines 666--667
+warning: warnings were issued by the TeX engine; use --print and/or --keep-logs for details.
+BACKTEST_50K.tex and BACKTEST_50K.pdf written

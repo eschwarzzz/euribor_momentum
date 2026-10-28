@@ -1,7 +1,7 @@
 """Override threshold: train/test split, reverse split and walk-forward selection, plus signal statistics.
 
-The threshold 0.5 of the frozen specification was chosen on this grid; this script shows it is chosen on either
-half of the sample and what a walk-forward choice would have earned.
+The threshold 0.5 was chosen on this grid for v1 and kept, untested, for v2. This script shows the grid for the frozen
+v2 spec, for v1 as reported, and for the v1 score on the both-rates anchor (the anchor fix alone).
 """
 import warnings
 
@@ -9,9 +9,9 @@ import numpy as np
 import pandas as pd
 
 from euribor.backtest import daily_pnl, metrics
-from euribor.config import ANCHOR_THRESHOLD_GRID, ECB_RULE, RESULTS, SUBPERIODS
+from euribor.config import ANCHOR_THRESHOLD_GRID, ECB_RULE, ECB_RULE_DFR, RESULTS, SUBPERIODS
 from euribor.data import load_continuous, load_features, load_group_scores, load_positions
-from euribor.signals import override, risk_score, walk_forward_threshold
+from euribor.signals import factor_score, override, risk_score, walk_forward_threshold
 
 warnings.filterwarnings("ignore")
 TAUS = [0.0] + ANCHOR_THRESHOLD_GRID + [99.0]          # 0 = composite only, 99 = rule only (never override)
@@ -22,8 +22,17 @@ def main():
     pd.set_option("display.width", 200)
     F, _, _ = load_features()
     cont = load_continuous()
-    ecb = load_positions()[ECB_RULE]
-    score = risk_score(load_group_scores())
+    P, G = load_positions(), load_group_scores()
+    grids, positions = {}, {}
+    for label, ecb, score in [("v2 (frozen)", P[ECB_RULE], factor_score(F)), ("v1", P[ECB_RULE_DFR], risk_score(G)),
+                              ("v1 score, both-rates anchor", P[ECB_RULE], risk_score(G))]:
+        print(f"\n===== {label} =====")
+        grids[label], positions[label] = study(ecb, score, cont)
+    pd.concat(grids, names=["spec", "tau"]).to_csv(RESULTS / "threshold_grid.csv")
+    pd.DataFrame(positions).to_csv(RESULTS / "anchored_walkforward_positions.csv")
+
+
+def study(ecb, score, cont):
     cache = {t: daily_pnl(override(ecb, score, t), cont) for t in TAUS}
 
     def sharpe(t, a, b):
@@ -57,18 +66,15 @@ def main():
     print("    tau path:", chosen)
     print("    sub-periods:", {k[:7]: round(metrics(pnl_wf, pos_d, start=a, end=b)["sharpe"], 2) for k, (a, b) in SUBPERIODS.items()})
     print("    reference, rule only:", {k[:7]: round(sharpe(99, a, b), 2) for k, (a, b) in SUBPERIODS.items()})
-    pd.DataFrame({"pos": pos_wf}).to_csv(RESULTS / "anchored_walkforward_positions.csv")
-    grid.to_csv(RESULTS / "threshold_grid.csv")
 
     s = score.loc["2002-01-31":]
     sign = np.sign(s)
     run_length = sign.groupby((sign != sign.shift()).cumsum()).size()
     crossings = ((s.abs() > 0.5) != (s.abs() > 0.5).shift()).sum() / (len(s) / 12)
-    print(f"\n[D] Signal (R+I+S mean of clipped z-scores), 2002-2026: monthly autocorrelation {s.autocorr(1):.2f} (3-month {s.autocorr(3):.2f}), "
+    print(f"\n[D] Signal (mean of clipped z-scores), 2002-2026: monthly autocorrelation {s.autocorr(1):.2f} (3-month {s.autocorr(3):.2f}), "
           f"sd {s.std():.2f}, share of months |score|>0.5: {(s.abs() > 0.5).mean():.0%}, sign flips per year {(sign != sign.shift()).sum() / (len(s) / 12):.1f}, "
           f"median sign run {run_length.median():.0f} months, band crossings (0.5) per year {crossings:.1f}")
-    G = load_group_scores()
-    print("    group score sd / autocorr:", {g: (round(G[g].loc["2002":].std(), 2), round(G[g].loc["2002":].autocorr(1), 2)) for g in "RIS"})
+    return grid, pos_wf
 
 
 if __name__ == "__main__":

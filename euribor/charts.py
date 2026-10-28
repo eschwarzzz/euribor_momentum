@@ -9,10 +9,13 @@ from matplotlib.patches import FancyBboxPatch, Rectangle
 
 from . import plotting as P
 from .config import (COMPOSITE, ECB_RULE, FIGURES, LONG_ONLY, OOS_END, OOS_START, OVERRIDE_THRESHOLD, PLACEBO, RESULTS, RIDGE_10,
-                     TICK_COST)
-from .data import load_continuous, load_features, load_group_scores, load_pnl_curves, load_positions, load_results_table
+                     SCORE_INPUTS, SIZING_VOL_END, TICK_COST)
+from .data import load_continuous, load_features, load_pnl_curves, load_positions, load_results_table
 from .plotting import plt
-from .signals import risk_score
+from .signals import factor_score, signed_zscores
+
+INPUT_LABEL = {"r_dfr_chg3": "Deposit rate, 3M change", "i_hicp": "HICP, year on year", "i_core": "Core HICP, year on year",
+               "i_unemp_chg6": "Unemployment, 6M change", "s_ciss": "CISS stress index"}
 
 
 # ---------------------------------------------------------------- research report (figures 1-5)
@@ -191,36 +194,37 @@ def _shade_short_months(ax, ecb, colour, include_first=False):
 
 
 def fig5_signal():
-    G = load_group_scores().loc["2002-01-31":]
+    F, _, _ = load_features()
+    Z = signed_zscores(F, SCORE_INPUTS).loc["2002-01-31":]
     ecb = load_positions()[ECB_RULE].loc["2002-01-31":]
-    score = risk_score(G)
+    score = factor_score(F).loc["2002-01-31":]
     fire = (score.abs() > OVERRIDE_THRESHOLD) & (np.sign(score) != ecb)
     fig, axes = plt.subplots(2, 1, figsize=(12, 7.4), dpi=200, sharex=True, gridspec_kw={"height_ratios": [1.15, 1]})
     ax = axes[0]
     P.style(ax)
     _shade_short_months(ax, ecb, P.SERIES[1], include_first=True)
     ax.axhspan(-0.5, 0.5, color=P.GRID, alpha=0.55, linewidth=0)
-    ax.plot(score.index, score.values, color=P.SERIES[0], linewidth=2, solid_joinstyle="round", label="R+I+S composite score (mean of clipped z-scores)")
+    ax.plot(score.index, score.values, color=P.SERIES[0], linewidth=2, solid_joinstyle="round", label="Five-input score (mean of signed, clipped z-scores)")
     ax.scatter(score.index[fire], score.values[fire], s=34, color=P.SERIES[2], zorder=5, edgecolor=P.SURFACE, linewidth=1.5,
                label="Override fires (|score| > 0.5 and against the rule)")
     ax.axhline(0, color=P.AXIS, linewidth=1)
-    ax.set_ylim(-3, 2.2)
+    ax.set_ylim(-2.4, 2.6)
     ax.set_ylabel("Score (z-units)", fontsize=9)
-    ax.set_title("The signal: composite score, dead band, and the months it overrides the ECB rule", loc="left", fontsize=11.5,
+    ax.set_title("The signal: risk-factor score, dead band, and the months it overrides the ECB rule", loc="left", fontsize=11.5,
                  fontweight="semibold", pad=10)
-    ax.text(pd.Timestamp("2002-03-31"), 1.95, "orange shading = follow-the-ECB rule is short (last move was a hike); unshaded = rule is long",
+    ax.text(pd.Timestamp("2002-03-31"), 2.45, "orange shading = follow-the-ECB rule is short (last move was a hike); unshaded = rule is long",
             fontsize=8, color=P.INK2, va="top")
     ax.text(pd.Timestamp("2002-03-31"), -0.45, "dead band ±0.5: rule position kept", fontsize=8, color=P.MUTED, va="bottom")
     ax.legend(frameon=False, fontsize=8.5, loc="lower left")
     ax = axes[1]
     P.style(ax)
-    for g, label, colour in [("R", "Rates / policy", P.SERIES[0]), ("I", "Inflation", P.SERIES[1]), ("S", "Sentiment / stress", P.SERIES[2])]:
-        ax.plot(G.index, G[g].values, color=colour, linewidth=2, solid_joinstyle="round", label=label)
+    for c, colour in zip(SCORE_INPUTS, P.SERIES):
+        ax.plot(Z.index, Z[c].values, color=colour, linewidth=1.6, solid_joinstyle="round", label=INPUT_LABEL[c])
     ax.axhline(0, color=P.AXIS, linewidth=1)
-    ax.set_ylabel("Group score (z-units)", fontsize=9)
+    ax.set_ylabel("Signed z-score", fontsize=9)
     ax.set_ylim(-3.1, 3.1)
-    ax.set_title("Its three components", loc="left", fontsize=11, fontweight="semibold", pad=8)
-    ax.legend(frameon=False, fontsize=8.5, loc="lower left", ncol=3)
+    ax.set_title("Its five inputs, each signed so that + argues for a higher price", loc="left", fontsize=11, fontweight="semibold", pad=8)
+    ax.legend(frameon=False, fontsize=8.5, loc="lower left", ncol=5)
     fig.subplots_adjust(left=0.07, right=0.98, top=0.93, bottom=0.05, hspace=0.16)
     P.save(fig, FIGURES / "fig5_signal.png")
 
@@ -236,9 +240,10 @@ def load_account(tag):
 
 
 def _sizing_volatility():
+    """60-day realised volatility and the constant sizing volatility (its 1999-2007 average), bp a year."""
     cont = load_continuous()
     v60 = cont["chg1"].rolling(60).std() * np.sqrt(252) * 100
-    return v60, 0.7 * v60 + 0.3 * v60.expanding(250).mean()
+    return v60, pd.Series(v60.loc[:SIZING_VOL_END].mean(), index=v60.index)
 
 
 def fig6_equity(X):
@@ -246,23 +251,30 @@ def fig6_equity(X):
     fig, axes = plt.subplots(2, 1, figsize=(12, 7.2), dpi=200, sharex=True, gridspec_kw={"height_ratios": [2.4, 1]})
     ax = axes[0]
     P.style(ax)
+    v1 = "v1 spec (as reported)"
+    ax.plot(E.index, E[v1].values, color=P.MUTED, linewidth=1.4, linestyle=(0, (4, 2)), label="v1 spec, 10% vol target, no interest")
     for k in ["Long-only", "Follow-the-ECB", "Walk-forward threshold", "Frozen spec"]:
         ax.plot(E.index, E[k].values, color=P.STRATEGY_COLOUR[k], linewidth=2.2 if k == "Frozen spec" else 1.6, solid_joinstyle="round",
                 label=P.display_name(k))
     ends = E.iloc[-1].sort_values()
-    ypos = ends.copy()
+    ypos = np.log(ends)
     for i in range(1, len(ypos)):
-        if ypos.iloc[i] - ypos.iloc[i - 1] < 13000:
-            ypos.iloc[i] = ypos.iloc[i - 1] + 13000
+        if ypos.iloc[i] - ypos.iloc[i - 1] < 0.12:
+            ypos.iloc[i] = ypos.iloc[i - 1] + 0.12
     for k in ends.index:
-        ax.text(E.index[-1] + pd.offsets.Day(60), ypos[k], f"{P.display_name(k)}  €{ends[k] / 1000:,.0f}k", fontsize=8.5, color=P.INK2, va="center")
+        label = "v1 spec" if k == v1 else P.display_name(k)
+        ax.text(E.index[-1] + pd.offsets.Day(60), np.exp(ypos[k]), f"{label}  €{ends[k] / 1000:,.0f}k", fontsize=8.5, color=P.INK2, va="center")
     ax.axhline(50000, color=P.AXIS, linewidth=1)
+    ax.set_yscale("log")
+    ax.set_ylim(E.min().min() * 0.85, np.exp(ypos.max()) * 1.15)
+    ax.set_yticks([t for t in [25000, 50000, 100000, 200000, 400000, 800000] if t <= E.max().max() * 1.3])
+    ax.minorticks_off()
     ax.yaxis.set_major_formatter(P.euro_k)
     ax.set_xlim(E.index[0], E.index[-1] + pd.offsets.Day(1250))
     ax.set_xticks(pd.to_datetime([f"{y}-01-01" for y in range(2008, 2027, 2)]))
     ax.set_xticklabels(range(2008, 2027, 2))
-    ax.legend(frameon=False, fontsize=8.5, loc="upper left", ncol=4)
-    P.title(ax, "€50,000 account, 10% volatility target, January 2008 to August 2026 (after costs, synthetic prices)", 11.5)
+    ax.legend(frameon=False, fontsize=8.5, loc="upper left", ncol=5)
+    P.title(ax, "€50,000 account, per-euro sizing, January 2008 to August 2026 (after costs, cash at EONIA/€STR, synthetic prices; log scale)", 11.5)
     ax = axes[1]
     P.style(ax)
     eq = E["Frozen spec"]
@@ -281,7 +293,7 @@ def fig6_equity(X):
 
 def fig_account(X, name, score_ylim, equity_title=None, pdf=None):
     """Signal, sizing volatility, contracts held and margin deployed; with an equity panel on top when ``equity_title`` is given."""
-    ECB, SCORE = load_positions()[ECB_RULE], risk_score(load_group_scores())
+    ECB, SCORE = load_positions()[ECB_RULE], factor_score(load_features()[0])
     V60, VB = _sizing_volatility()
     d = X["d"]
     w0, w1 = d.index[0], d.index[-1]
@@ -311,7 +323,7 @@ def fig_account(X, name, score_ylim, equity_title=None, pdf=None):
     P.style(ax)
     _shade_short_months(ax, ecb, P.SERIES[1])
     ax.axhspan(-0.5, 0.5, color=P.GRID, alpha=0.55, linewidth=0)
-    ax.plot(score.index, score.values, color=P.SERIES[0], linewidth=2, solid_joinstyle="round", label="Risk-factor composite score")
+    ax.plot(score.index, score.values, color=P.SERIES[0], linewidth=2, solid_joinstyle="round", label="Five-input risk-factor score")
     ax.scatter(score.index[fire], score.values[fire], s=34, color=P.SERIES[2], zorder=5, edgecolor=P.SURFACE, linewidth=1.5,
                label="Override fires (|score| > 0.5 and against ECB rate momentum)")
     ax.axhline(0, color=P.AXIS, linewidth=1)
@@ -326,7 +338,7 @@ def fig_account(X, name, score_ylim, equity_title=None, pdf=None):
     ax = axes[1]
     P.style(ax)
     ax.plot(v60.index, v60.values, color=P.MUTED, linewidth=1.1, label="60-day realised volatility")
-    ax.plot(vb.index, vb.values, color=P.SERIES[0], linewidth=2, solid_joinstyle="round", label="Sizing volatility (70% 60-day + 30% long-run mean)")
+    ax.plot(vb.index, vb.values, color=P.SERIES[0], linewidth=2, solid_joinstyle="round", label=f"Sizing volatility, fixed at the 1999–2007 average ({vb.iloc[0]:.0f} bp)")
     ax.set_ylabel("bp per year", fontsize=9)
     ax.set_ylim(0, v60.max() * (1.18 if with_equity else 1.0) * 1.03)
     ax.legend(frameon=False, fontsize=8.5, loc="upper center" if not with_equity else "upper left", ncol=2)
@@ -341,7 +353,7 @@ def fig_account(X, name, score_ylim, equity_title=None, pdf=None):
     ax.set_ylabel("Contracts", fontsize=9)
     ax.set_ylim(None, c.max() * 1.3)
     ax.legend(frameon=False, fontsize=8.5, loc="upper left", ncol=2)
-    P.title(ax, "Position: whole contracts held (10% volatility target on current equity, resized monthly)")
+    P.title(ax, "Position: whole contracts held (10% of current equity at the fixed sizing volatility, resized monthly)")
     # margin
     ax = axes[3]
     P.style(ax)
@@ -355,7 +367,7 @@ def fig_account(X, name, score_ylim, equity_title=None, pdf=None):
     ax.legend(frameon=False, fontsize=8.5, loc="upper left" if not with_equity else "upper center", ncol=1)
     tp = d["margin"].idxmax()
     ax.annotate(f"largest euro amount: €{d['margin'].max():,.0f} ({abs(d['contracts'].loc[tp]):.0f} contracts), {tp:%b %Y}", (tp, mp.loc[tp]),
-                xytext=(w1, mp.max() * 1.12), textcoords="data", ha="right", fontsize=8.5, color=P.INK2,
+                xytext=(w1, max(ms.max(), mp.max()) * 0.8), textcoords="data", ha="right", fontsize=8.5, color=P.INK2,
                 arrowprops=dict(arrowstyle="-", color=P.AXIS, linewidth=1))
     P.title(ax, f"Margin deployed: average {mp.mean():.1f}% of equity, peak {mp.max():.1f}%; the other {100 - mp.max():.0f}%+ stays in cash")
     fig.subplots_adjust(left=0.07, right=0.985, top=0.96 if not with_equity else 0.965, bottom=0.035, hspace=0.2 if not with_equity else 0.24)
@@ -402,7 +414,8 @@ def fig_mc(X, name, strategies, block, pdf=None):
     ax.plot(x, fan["p50"], color=P.SERIES[0], linewidth=2, label="Median path")
     ax.plot(x, actual, color=P.INK, linewidth=1.4, label="Actual backtest path")
     lo, hi = min(fan["p05"].min(), actual.min()) * 0.8, max(fan["p95"].max(), actual.max()) * 1.25
-    ticks = [t for t in [25000, 50000, 75000, 100000, 150000, 200000, 400000, 800000] if lo <= t <= hi and (hi / lo < 6 or t not in (75000, 150000))]
+    ticks = [t for t in [25000, 50000, 75000, 100000, 150000, 200000, 400000, 800000, 1600000, 3200000, 6400000]
+             if lo <= t <= hi and (hi / lo < 6 or t not in (75000, 150000))]
     ax.axhline(50000, color=P.AXIS, linewidth=1)
     ax.set_yscale("log")
     ax.set_ylim(lo, hi)
@@ -504,12 +517,12 @@ def main():
     if (RESULTS / "bt50k_daily.csv").exists():
         full, five = load_account("bt50k"), load_account("bt50k_5y")
         fig6_equity(full)
-        fig_account(full, "fig7_bt50k_signal_vol_margin.png", (-3, 2.2))
+        fig_account(full, "fig7_bt50k_signal_vol_margin.png", (-2.2, 2.7))
         fig_mc(full, "fig8_bt50k_montecarlo.png", ["Frozen spec", "Follow-the-ECB", "Long-only", "Walk-forward threshold"], 12)
         with PdfPages(FIGURES / "bt50k_5y_pages.pdf") as pdf:       # the two five-year pages in one file
-            fig_account(five, "fig9_bt50k_5y_account.png", (-1.9, 1.15), pdf=pdf,
-                        equity_title="Last five years: a new €50,000 account, September 2021 to August 2026 (10% volatility target, after costs)")
-            fig_mc(five, "fig10_bt50k_5y_montecarlo.png", ["Frozen spec", "Follow-the-ECB", "Long-only"], 6, pdf=pdf)
+            fig_account(five, "fig9_bt50k_5y_account.png", (-2.2, 1.0), pdf=pdf,
+                        equity_title="Last five years: a new €50,000 account, September 2021 to August 2026 (per-euro sizing, after costs)")
+            fig_mc(five, "fig10_bt50k_5y_montecarlo.png", ["Frozen spec", "Follow-the-ECB", "Long-only", "Walk-forward threshold"], 6, pdf=pdf)
     if (RESULTS / "trendcorr_monthly_pnl.csv").exists():
         fig11_trend_correlation()
 
