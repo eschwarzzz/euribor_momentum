@@ -12,11 +12,10 @@ import json
 import numpy as np
 import pandas as pd
 
-from .backtest import daily_pnl, metrics
-from .config import (COMPOSITE, COMPOSITE_SCALED, ECB_RULE, LOGIT, LONG_ONLY, OOS_END, OOS_START, PLACEBO, REPORTS,
-                     RESULTS, RIDGE_10, RIDGE_100, TICK_COST, TREND_12M, TREND_3M)
-from .data import load_continuous, load_features, load_group_scores, load_positions, load_results_table
-from .signals import frozen_spec, risk_score
+from .config import (COMPOSITE, COMPOSITE_SCALED, ECB_RULE, ECB_RULE_DFR, LOGIT, LONG_ONLY, OOS_END, OOS_START, OVERRIDE_THRESHOLD,
+                     PLACEBO, REPORTS, RESULTS, RIDGE_10, RIDGE_100, SCORE5, SPEC, SPEC_V1, SPEC_V1_BOTH, TREND_12M, TREND_3M)
+from .data import load_continuous, load_features, load_pnl_curves, load_positions, load_results_table, sharpe_monthly
+from .signals import factor_score
 
 MINUS = "−"
 
@@ -24,6 +23,11 @@ MINUS = "−"
 def sg(x, nd=2):
     """Signed number with a real minus sign."""
     return ("+" if x >= 0 else MINUS) + f"{abs(x):.{nd}f}"
+
+
+def sg0(x, nd=2):
+    """Signed number that prints a value which rounds to zero as plain 0."""
+    return f"{0:.{nd}f}" if abs(x) < 0.5 * 10 ** -nd else sg(x, nd)
 
 
 def pc(x, nd=1):
@@ -72,7 +76,10 @@ def research_report():
     hdr = ("| Variant | Sharpe | Ann. P&L (bp) | Max DD (bp) | CAGR @10% vol | Max DD @10% vol | Monthly hit | Δ Sharpe vs follow-the-ECB |\n"
            "|---|---|---|---|---|---|---|---|")
     main = [(LONG_ONLY, "Benchmark: long-only, 2nd contract"), (TREND_12M, "Benchmark: 12M trend"), (TREND_3M, "Benchmark: 3M trend"),
-            (ECB_RULE, "Benchmark: follow-the-ECB (policy momentum)"), (COMPOSITE, "Macro composite, prior signs, ±1"),
+            (ECB_RULE, "Benchmark: follow-the-ECB (policy momentum, both rates)"), (ECB_RULE_DFR, "Follow-the-ECB on the deposit rate alone (v1 anchor)"),
+            (SPEC_V1, "v1 spec: deposit-rate anchor + 23-series override"), (SPEC_V1_BOTH, "v1 score on the both-rates anchor"),
+            (SPEC, "Frozen spec v2: both-rates anchor + five-input override"), (SCORE5, "Five-input score alone, ±1"),
+            (COMPOSITE, "Macro composite, prior signs, ±1"),
             (COMPOSITE_SCALED, "Macro composite, prior signs, scaled"),
             ("Prior composite, user factors only (R+M+S)", "Macro composite, prior signs, no inflation"),
             (RIDGE_10, "Ridge, all 37 features, α=10, ±1"), (RIDGE_100, "Ridge, α=100, ±1"), ("Ridge all factors (a=10), scaled", "Ridge, α=10, scaled"),
@@ -100,16 +107,22 @@ def research_report():
             ("Ridge all factors (a=1000), sign", "Ridge α=1000"),
             ("Ridge all, min_train 120 (OOS from 2012)", "Ridge, 10-year minimum training, OOS from 2012"),
             ("Ridge all, FRONT contract", "Ridge traded on the front contract")]
-    subkeys = [(LONG_ONLY, "Long-only"), (TREND_12M, "12M trend"), (ECB_RULE, "Follow-the-ECB"), (COMPOSITE, "Composite, prior signs"),
+    subkeys = [(LONG_ONLY, "Long-only"), (TREND_12M, "12M trend"), (ECB_RULE, "Follow-the-ECB"), (ECB_RULE_DFR, "Follow-the-ECB, deposit rate only"),
+               (SPEC_V1, "v1 spec"), (SPEC, "Frozen spec v2"), (COMPOSITE, "Composite, prior signs"),
                (COMPOSITE_SCALED, "Composite, scaled"), (RIDGE_10, "Ridge α=10"), (LOGIT, "Logit"),
                ("Combo: prior sign + follow-the-ECB (avg)", "Combo composite + ECB (post hoc)")]
     sub_hdr = "| Variant | " + " | ".join(S.columns) + " |\n|---|" + "---|" * len(S.columns)
     sub_rows = "\n".join("| " + lab + " | " + " | ".join("n/a" if pd.isna(v) else f"{v:+.2f}" for v in S.loc[key]) + " |" for key, lab in subkeys)
     n_var = len(Res)
     nl = chr(10)
+    # overlap of the composite with the benchmark rule (month-end positions and monthly P&L, 2008-26)
+    Pw = load_positions().loc[OOS_START:OOS_END]
+    comp, rule, ridge = np.sign(Pw[COMPOSITE]), Pw[ECB_RULE], np.sign(Pw[RIDGE_10])
+    Cm = load_pnl_curves()[[COMPOSITE, ECB_RULE]].loc[OOS_START:OOS_END].resample("ME").sum()
+    flips = lambda x: (x.diff().abs() > 0).sum() / (len(x) / 12)     # noqa: E731
     return f"""# Euribor 3M futures: macro-factor direction strategy
 
-Backtest report, 24 September 2026. Instrument: synthetic 3-month Euribor future, second quarterly contract (3 to 6 months to expiry). Monthly rebalancing at month-end, positions applied from the next trading day, half a basis point (one tick) per side plus quarterly roll costs. Out-of-sample window for every variant: January 2008 to August 2026 (224 months). Data and construction are in the appendix.
+Backtest report, 24 September 2026; the benchmark rule and the anchored specifications were updated on 28 October 2026 after an external review (the follow-the-ECB rule now reads both policy rates). The frozen specification and its account test are in `BACKTEST_50K.md`. Instrument: synthetic 3-month Euribor future, second quarterly contract (3 to 6 months to expiry). Monthly rebalancing at month-end, positions applied from the next trading day, half a basis point (one tick) per side plus quarterly roll costs. Out-of-sample window for every variant: January 2008 to August 2026 (224 months). Data and construction are in the appendix.
 
 ## 1. Hypothesis
 
@@ -117,7 +130,7 @@ The direction of the 3M Euribor future over the next month is predictable from t
 
 ## 2. Benchmark
 
-- **Primary benchmark: follow-the-ECB.** Hold the future long if the deposit rate was cut in the last three months, short if it was raised, keep the previous position otherwise. This is the simplest thing a rates trader would do and it turns out to be hard to beat.
+- **Primary benchmark: follow-the-ECB.** Hold the future long if the policy rates (main refinancing rate plus deposit rate) were cut in the last three months, short if they were raised, keep the previous position otherwise. This is the simplest thing a rates trader would do and it turns out to be hard to beat. The September version read the deposit rate alone, which missed the October 2008 cut (the corridor change of 9 October put the deposit rate back to its July level); it is kept as a row.
 - **Secondary benchmarks:** long-only (roll the second contract), 3-month and 12-month price trend.
 - **Universe and window:** one instrument, daily P&L in basis points of price, Jan 2008 to Aug 2026. Fitted models train on data from Dec 2001 onward with an expanding window (minimum 72 months), refit every month, and never see the month they predict. The 2002 to 2007 period is reported separately as a quasi-in-sample check for the unfitted rules.
 
@@ -127,10 +140,11 @@ The direction of the 3M Euribor future over the next month is predictable from t
 
 | Family | What varies | Count |
 |---|---|---|
-| Benchmarks | long-only, 3M trend, 12M trend, follow-the-ECB | 4 |
+| Benchmarks | long-only, 3M trend, 12M trend, follow-the-ECB on both policy rates and on the deposit rate alone | 5 |
 | Prior-sign composite (no fitting) | z-score each feature, multiply by its theory sign, average within and across groups; ±1 vs scaled sizing; with and without inflation; single group and drop-one-group; expanding vs rolling 60M z-scores; front, 2nd, 3rd contract; 3M smoothed signal; 1 bp and 2 bp costs | 17 |
-| Fitted, walk-forward | ridge (α = 1, 10, 100, 1000), lasso, logistic; ±1 vs scaled; user factors only; single group and drop-one-group; plus US rates and Treasury holdings; 10-year minimum training; front contract; shuffled-target placebo | 20 |
+| Fitted, walk-forward | ridge (α = 1, 10, 100, 1000), lasso, logistic; ±1 vs scaled; user factors only; single group and drop-one-group; plus US rates and Treasury holdings; 10-year minimum training; front contract; shuffled-target placebo | 22 |
 | Combinations | composite averaged with ridge; composite averaged with follow-the-ECB | 2 |
+| Anchored specifications (added 28 October) | v1 (deposit-rate anchor, 23-series override), the v1 score on the both-rates anchor, the frozen v2 (both-rates anchor, five-input override), the five-input score alone | 4 |
 
 Debt-holdings features have no theory-pinned sign, so they enter only the fitted models. Full feature list with lags and signs: appendix B.
 
@@ -168,7 +182,7 @@ Reference: composite with all groups {Res.loc[COMPOSITE, 'sharpe']:+.2f}, ridge 
 
 **Placebo.** Ridge trained on a shuffled target scores {Res.loc[PLACEBO, 'sharpe']:+.2f}, so the pipeline has no structural leak or drift bias. (An earlier build that bootstrapped the forward from the Euribor deposit curve gave the placebo a Sharpe near 1 and long-only a Sharpe above 6 in 2013 to 2019, which is how the tenor-basis flaw in the synthetic price was found; see appendix A.)
 
-**Overlap with the benchmark.** The composite and follow-the-ECB agree on direction in only 50% of months and their monthly P&L correlation is 0.21, so the composite is not a relabelled policy-momentum rule. Follow-the-ECB is long 81% of the time; the composite is long 49% of the time and changes sign about twice a year, the ridge about three times a year.
+**Overlap with the benchmark.** The composite and follow-the-ECB agree on direction in only {(comp == rule).mean():.0%} of months and their monthly P&L correlation is {Cm.corr().iloc[0, 1]:.2f}, so the composite is not a relabelled policy-momentum rule. Follow-the-ECB is long {(rule > 0).mean():.0%} of the time; the composite is long {(comp > 0).mean():.0%} of the time and changes sign {flips(comp):.1f} times a year, the ridge {flips(ridge):.1f} times a year.
 
 **Fitted-model stability.** Ridge coefficients (mean over refits) are largest on 3M changes in the 12M Euribor and in the deposit rate (negative, i.e. rate momentum continues), the Eurosystem balance-sheet 3M change (positive, i.e. QE lowers expected rates), the curve slope (positive) and the 3M price change (negative, i.e. short-horizon mean reversion, opposite to the composite's prior). Rates and inflation coefficients keep their sign in about 90% of monthly refits; the least stable are money-supply terms (M3 six-month growth and balance-sheet YoY keep their sign in fewer than half of the refits) and the CISS level (two thirds).
 
@@ -180,7 +194,7 @@ Caveats, in order of importance:
 
 1. **Prices are synthetic.** No free source of ICE Euribor futures exists, so the contract is priced from daily 3M Euribor plus the AAA government forward premium. It settles exactly at 100 minus 3M Euribor, but intra-life marks carry government-curve noise and ignore the Euribor-OIS basis and convexity. Validate on real settlement prices before trading.
 2. **Multiple testing.** {n_var} variants; the best fitted Sharpe (α = 100, {Res.loc[RIDGE_100, 'sharpe']:+.2f}) and the post hoc combination ({Res.loc['Combo: prior sign + follow-the-ECB (avg)', 'sharpe']:+.2f}) should be discounted. The composite's signs were fixed from theory before running, which limits but does not remove this.
-3. **The composite failed in 2002 to 2007** (Sharpe {S.loc[COMPOSITE, S.columns[0]]:+.2f}) while follow-the-ECB worked (+0.81). One full hiking cycle out of two in the sample was missed.
+3. **The composite failed in 2002 to 2007** (Sharpe {S.loc[COMPOSITE, S.columns[0]]:+.2f}) while follow-the-ECB worked ({S.loc[ECB_RULE, S.columns[0]]:+.2f}). One full hiking cycle out of two in the sample was missed.
 4. **Feature effective sample is small.** Eighteen years contain three ECB cycles; single-group results move by ±0.3 Sharpe when the window shifts.
 5. **Data gaps.** Treasury holdings for Germany, Italy and the Netherlands are carried forward from Nov 2025; BIS bank claims are quarterly with a five-month publication lag; monthly macro is used with a one-month lag (two for unemployment and Treasury data), and 2026 inflation comes from Eurostat's new ECOICOP-v2 series spliced onto the ECB history.
 
@@ -197,6 +211,7 @@ Caveats, in order of importance:
 | Group | Feature | Lag | Prior sign on price |
 |---|---|---|---|
 | Rates | DFR change 3M, 6M | daily | − |
+| Rates (anchor only) | MRO change 3M, added to the DFR change in the follow-the-ECB rule; not in the composite or the fitted models | daily | − |
 | Rates | Euribor 12M − 3M slope; its 3M change | daily | +, − |
 | Rates | 12M Euribor 3M change | daily | − |
 | Rates | 3M Euribor − DFR (money-market stress) | daily | + |
@@ -218,6 +233,21 @@ Caveats, in order of importance:
 
 
 # ================================================================ BACKTEST_50K.md and its appendix
+def override_episodes(spec, anchor, y_bp):
+    """Runs of month-ends where ``spec`` differs from ``anchor``: (first, last, months, side, gain over the anchor in bp, gross)."""
+    on = (spec != anchor) & spec.notna()
+    rel = (spec - anchor) * y_bp
+    runs = []
+    for _, g in on[on].groupby((on != on.shift()).cumsum()[on]):
+        a, b = g.index[0], g.index[-1]
+        runs.append((a, b, len(g), "long" if spec[a] > 0 else "short", rel.loc[a:b].sum()))
+    return runs
+
+
+def month_span(a, b):
+    return f"{a:%b %Y}" if a == b else f"{a:%b %Y} – {b:%b %Y}"
+
+
 def account_report():
     """Return (main report, appendix) as Markdown strings."""
     S = pd.read_csv(RESULTS / "bt50k_variants.csv", index_col=0)
@@ -232,18 +262,56 @@ def account_report():
     mc5 = json.load(open(RESULTS / "bt50k_5y_mc.json"))
     d5 = pd.read_csv(RESULTS / "bt50k_5y_daily.csv", index_col=0, parse_dates=True)
     m5 = pd.read_csv(RESULTS / "bt50k_5y_monthly.csv", index_col=0, parse_dates=True)
+    ERR = pd.read_csv(RESULTS / "synthetic_error_sharpe.csv", index_col=0)
+    err = json.load(open(RESULTS / "synthetic_error.json"))
+    TG = pd.read_csv(RESULTS / "threshold_grid.csv")
+    Res = load_results_table()
     CB = mc["cost_bp"]
     CPS = CB * 25
-    FZ, WF, EC, LO, TR = ("Frozen spec, 10% vol target", "Walk-forward threshold, 10% vol", "Follow-the-ECB only, 10% vol", "Long-only, 10% vol",
-                          "12M trend, 10% vol")
-    F, _, _ = load_features()
+    FZ, WF, EC, LO, TR = ("Frozen spec, per-euro sizing", "Walk-forward threshold, per-euro sizing", "Follow-the-ECB only, per-euro sizing",
+                          "Long-only, per-euro sizing", "12M trend, per-euro sizing")
+    V1, V1E, FV, EV = ("v1 spec, 10% vol target, no interest (as reported)", "v1 spec, per-euro sizing", "Frozen, 10% vol target",
+                       "Follow-the-ECB, 10% vol target")
+    F, y, _ = load_features()
     cont = load_continuous()
-    P, G = load_positions(), load_group_scores()
-    ecb = P[ECB_RULE]
-    score = risk_score(G)
-    frozen = frozen_spec(ecb, score)
-    u_old = metrics(*daily_pnl(frozen, cont, cost=TICK_COST), start=OOS_START, end=OOS_END)["sharpe"]
-    u_new = mc["unit_check"]["sharpe"]
+    P = load_positions()
+    ecb, ecb_dfr, frozen, v1 = P[ECB_RULE], P[ECB_RULE_DFR], P[SPEC], P[SPEC_V1]
+    score = factor_score(F)
+    sig0, per50 = mc["sizing_vol_bp"], mc["contracts_per_50k"]
+    u1, u1_ecb = Res.loc[SPEC, "sharpe"], Res.loc[ECB_RULE, "sharpe"]
+    dfl = mc["deflation"]
+
+    # regimes (one contract, gross, decisions Dec 2007 to Jul 2026 -> P&L months Jan 2008 to Aug 2026)
+    win = slice("2007-12-31", "2026-07-31")
+    yb = y.loc[win] * 100
+    mro6 = F["r_mro_chg3"] + F["r_mro_chg3"].shift(3)
+    moved = ((F["r_dfr_chg6"] != 0) | (mro6 != 0)).loc[win]
+    gross = frozen.loc[win] * yb
+    sc = score.loc[win]
+    regime = {lab: (int(mk.sum()), gross[mk].mean(), sc[mk].corr(yb[mk]), yb[mk].abs().mean())
+              for lab, mk in [("ECB moved in the last 6 months", moved), ("ECB on hold for 6 months or more", ~moved)]}
+
+    # what the override adds
+    ep2, ep1 = override_episodes(frozen.loc[win], ecb.loc[win], yb), override_episodes(v1.loc[win], ecb_dfr.loc[win], yb)
+    ov2 = sum(e[4] for e in ep2)
+    fire = ((score.abs() > OVERRIDE_THRESHOLD) & (np.sign(score) != ecb)).loc[win]
+    fire_dates = fire[fire].index
+
+    # threshold grid
+    col = "2008-26 (report window)"
+    numeric = TG[pd.to_numeric(TG["tau"], errors="coerce").notna()]
+    t2, t1 = numeric[numeric["spec"] == "v2 (frozen)"][col], numeric[numeric["spec"] == "v1"][col]
+    rule_only = TG[(TG["spec"] == "v2 (frozen)") & (TG["tau"] == "rule only")][col].iloc[0]
+    taus = mc["tau_path"]
+    tau_change = next(int(yr) for yr, t in taus.items() if t != taus["2008"])
+
+    # sizing by volatility third (one contract, gross)
+    v60 = cont["chg1"].rolling(60).std() * np.sqrt(252) * 100
+    blend = (0.7 * v60 + 0.3 * v60.expanding(250).mean()).asof(yb.index)
+    third = pd.qcut(blend, 3, labels=["Low", "Middle", "High"])
+    terc = {lab: (int((third == lab).sum()), blend[third == lab].mean(), (200 / blend[third == lab]).mean(), gross[third == lab].mean(),
+                  sharpe_monthly(gross[third == lab]), gross[third == lab].sum() / gross.sum()) for lab in ["Low", "Middle", "High"]}
+    peak08, peak22 = v60.loc["2008"].max() / sig0, v60.loc["2022":"2023"].max() / sig0
 
     # derived figures, main window
     eq = d["equity"]
@@ -255,7 +323,7 @@ def account_report():
     ret_m = m["ret"]
     wm, bm = ret_m.idxmin() + pd.offsets.MonthEnd(1), ret_m.idxmax() + pd.offsets.MonthEnd(1)      # decision at month-end t -> P&L month is t+1
     fees = d["fees"].sum()
-    gross = d["pnl"].sum() + fees
+    gross_eur = d["pnl"].sum() + fees
     flips = int((np.sign(m["contracts"]).diff().abs() > 0).sum())
     resized = int((m["traded"] > 0).sum())
     lr = np.log1p(d["ret"])
@@ -271,48 +339,74 @@ def account_report():
     sides_trade = m["traded"].sum()
     yrs = len(m) / 12
     nl, ds, bs, bp = mc["nulls"], mc["deflated"], mc["bootstrap_sharpe"], mc["bootstrap_pnl"]
-    sr0_45, sr0_70 = 0.53, 0.57
-    roll60 = ret_m.rolling(60).apply(lambda x: x.mean() / x.std() * np.sqrt(12))
+    roll60 = m["excess"].rolling(60).apply(lambda x: x.mean() / x.std() * np.sqrt(12))
+    lo_q, hi_q = round(ERR.loc["Frozen spec", "measured_p05"], 1), round(max(u1, t2.max()), 1)
 
-    def row(name, label=None, bold=False, base=None):
-        r = S.loc[name]
-        delta = "n/a" if base is None else ("0" if name == base else sg(r["sharpe"] - S.loc[base, "sharpe"]))
+    def row(name, label=None, bold=False, base=None, table=S):
+        r = table.loc[name]
+        delta = "n/a" if base is None else ("0" if name == base else sg(r["sharpe"] - table.loc[base, "sharpe"]))
         cells = [label or name, sg(r["sharpe"]), pc(r["cagr_pct"]), pc(r["maxdd_pct"]), eur(r["final_equity"]), delta]
         return "| " + " | ".join(f"**{c}**" if bold else c for c in cells) + " |"
 
+    def ep_rows(spec_label, eps, anchor_label):
+        return "\n".join(f"| {spec_label} | {month_span(a, b)} | {n} | {side} ({anchor_label} {'short' if side == 'long' else 'long'}) | {sg(g, 0)} bp |"
+                         for a, b, n, side, g in eps)
+
     MAIN = f"""# Euribor macro strategy: €50,000 account backtest
 
+Frozen specification v2, fixed on 28 October 2026; generated {today()}. v1, as reported in September and October, is kept as a comparison row throughout.
+
 ## 1. Hypothesis
-The frozen specification earns a positive return on the 2nd quarterly Euribor contract. It has two parts. **ECB rate momentum** sets the default position: long if the deposit facility rate was cut in the last three months, short if it was raised, otherwise the position is kept. **The risk factors** can override it: when the risk-factor score is above +0.5 the position is long, when it is below −0.5 the position is short, whatever the ECB did last. The position is decided at each month-end and held for the next month. This test asks what that edge looks like as a real account: €50,000 of capital, whole contracts, euro costs, margin, and a sizing rule, since the specification itself only says long or short.
+ECB policy rates move in runs, so the direction of the last move predicts the next month on the 2nd quarterly Euribor contract. The frozen specification has two parts. **ECB rate momentum** sets the default position: long if the main refinancing rate and the deposit facility rate together were cut over the last three months, short if they were raised, otherwise the position is kept. **The risk-factor score** can override it: above +0.5 the position is long, below −0.5 short, whatever the ECB did last. The position is decided at each month-end and held for the next month. This test asks what that edge looks like as a real account: €50,000, whole contracts, euro costs, margin, interest on cash and a sizing rule.
 
-**The risk factors.** Three groups of monthly macro series, each turned into a score and averaged into one number:
+**The edge is regime dependent; expect long quiet stretches.** Half the months carry the strategy. In the other half, when the ECB has been on hold, the signal has little to say:
 
-| Group | What it captures | Series (sign: + argues for a higher futures price, i.e. lower rates) | Publication lag |
+| State at month-end | Months | Frozen spec, bp a month (one contract, gross) | Score's correlation with next month's move | Average size of next month's move |
+|---|---|---|---|---|
+""" + "\n".join(f"| {lab} | {v[0]} | {sg(v[1], 1)} | {sg(v[2])} | {v[3]:.1f} bp |" for lab, v in regime.items()) + f"""
+
+The best 10 of {len(m)} months are {top10:.0%} of the account's trading P&L, and the nine years 2013–21 added {share('2013', '2021'):.0%} of its growth.
+
+**The risk-factor score.** Five monthly inputs, one for each channel the ECB reacts to. Each is turned into an expanding z-score (at least 36 months), clipped to ±3 and multiplied by a sign fixed from theory. The score is their plain mean, so each input weighs 20%.
+
+| Input | Channel | Sign (+ argues for a higher price, i.e. lower rates) | Publication lag |
 |---|---|---|---|
-| Rates and policy | where policy and the money-market curve have been moving | deposit rate change over 3 and 6 months (−); 12M minus 3M Euribor slope (+) and its 3-month change (−); 12M Euribor 3-month change (−); 3M Euribor minus the deposit rate (+); 2nd-contract price momentum over 3 and 12 months (+) | none |
-| Inflation | whether the ECB has room to ease | headline and core HICP, year on year (−), and their 3-month changes (−); unemployment rate, 6-month change (+) | HICP 1 month, unemployment 2 months |
-| Sentiment and stress | financial and political stress that pushes the ECB toward easing | Europe economic policy uncertainty index, level and 3-month change (+); Italy plus Spain minus Germany plus France uncertainty, level and change (+); Italian and Spanish minus German 10-year yield spread, level and change (+); ECB composite systemic stress indicator, level and change (+); economic sentiment indicator, level and change (−) | uncertainty and sentiment 1 month, others none |
+| Deposit facility rate, 3-month change | policy persistence | − | none |
+| HICP, year on year | the mandate | − | 1 month |
+| Core HICP, year on year | how persistent inflation is | − | 1 month |
+| Unemployment rate, 6-month change | slack | + | 2 months |
+| ECB composite indicator of systemic stress (CISS), level | financial stress | + | none |
 
-Each series is converted to an expanding z-score (at least 36 months of history), clipped to ±3 and multiplied by its sign; the signs were fixed from theory, not fitted. Series are averaged within each group, and the risk-factor score is the mean of the three group scores.
+**What changed from v1, and why.** An external review (18 October 2026) recommended four changes; all four are in v2.
+
+| | v1 (September 2026) | v2 (frozen) | Reason |
+|---|---|---|---|
+| Anchor | deposit rate alone | main refinancing rate plus deposit rate | On 9 October 2008, the day after a 50 bp cut, the ECB narrowed the corridor and put the deposit rate back to its July level. The deposit-rate rule saw no cut and stayed short into a 142 bp rally. It is the only month from 1999 to 2026 where the choice of rate changes the position. |
+| Score | 23 series in three groups, averaged within groups first | 5 inputs, plain mean | Four rates series were one signal (correlations 0.62 to 0.93); the group step set hidden weights; four inputs worked only in 2008–12 and several added nothing. |
+| Sizing | 10% volatility target on a 60-day/long-run blend | 10% of equity at a fixed volatility, the 1999–2007 average | The strategy earns when volatility is high, so the target held its smallest positions when the signal paid (section 5). |
+| Cash | earns nothing | EONIA, then €STR | About 98% of the account is cash. |
+
+The five inputs were picked on economic grounds and fixed before any test of the reduced score, but after reading the review's factor-by-factor evidence, so the choice is not blind; it is counted as a trial. The 0.5 threshold was kept from v1 without retesting.
 
 ## 2. Benchmark
-Long-only, 12-month trend and the plain follow-the-ECB rule, all run through the same account and the same sizing. Window January 2008 to August 2026, 224 months, synthetic 2nd-contract prices. The account starts on 1 January 2008, a month earlier than the earlier reports' 31 January start; that month was a loss, and with the cost change below the frozen spec's one-contract Sharpe goes from {sg(u_old)} (earlier reports) to {sg(u_new)} here.
+Long-only, 12-month trend and ECB rate momentum alone, all through the same account and sizing, plus v1 as reported. Window January 2008 to August 2026, {len(m)} months, synthetic 2nd-contract prices. On one contract at {CB} bp per side from 1 January 2008 the frozen spec scores {sg(mc['unit_check']['sharpe'])}; the one-contract report (0.5 bp, from 31 January) gives {sg(u1)}.
 
 Account assumptions:
 
 | Item | Setting |
 |---|---|
-| Capital | €50,000, euro account, cash earns no interest |
+| Capital | €50,000, euro account |
 | Contract | €2,500 per price point, €25 per basis point |
 | Sizing | contracts = round(10% × equity ÷ (σ × €2,500)), set each month-end with the signal |
-| σ | 70% trailing 60-day realised volatility + 30% its long-run mean, annualised |
+| σ | {sig0:.1f} bp a year: the average 60-day realised volatility of the contract over 1999–2007, known before the account opens. That is one contract per €{50000 / per50:,.0f} of equity; size follows equity, not volatility |
+| Cash | equity above initial margin earns EONIA to September 2019, then €STR, including the negative rates of 2015–22. Sharpe ratios are on returns in excess of that rate |
 | Costs | {CB} bp per side = €{CPS:.2f} per contract (half a one-tick spread plus exchange, clearing and broker fees); roll = €{2 * CPS:.0f} per contract, four times a year |
 | Margin | €237 initial margin per contract (broker quote, September 2026), held flat through history |
 
-The 10% volatility target and the volatility blend are my choices, not part of the frozen specification. Section 5 shows what changes with other choices. The {CB} bp cost is a realistic figure for the ICE contract; 0.5 bp (one full tick) is kept as a sensitivity row and is about what Eurex FEU3 would cost.
+The sizing rule uses no volatility observed after the account opens, as the review asked. It does not target a realised volatility either; section 5 shows what that costs. The {CB} bp cost is a realistic figure for the ICE contract; 0.5 bp (one full tick) is kept as a sensitivity row and is about what Eurex FEU3 would cost.
 
 ## 3. Variants
-{len(S)} account runs: 5 strategies at the 10% target (frozen, walk-forward threshold, follow-the-ECB, long-only, 12M trend); the frozen spec at 5%, 15% and 20% targets, with unblended 60-day volatility, with 1 and 3 fixed contracts, at 0.5, 1 and 2 bp per side, from a 2002 start, and on the OIS-spliced price series; follow-the-ECB on the OIS-spliced series. No signal parameter was changed or tuned.
+{len(S)} account runs. Five strategies with per-euro sizing: the frozen spec, a walk-forward threshold, ECB rate momentum, long-only and 12-month trend. v1 as reported and v1 with per-euro sizing; ECB rate momentum on the deposit rate alone. The frozen spec and ECB rate momentum at the v1 10% volatility target, and the frozen spec with unblended 60-day volatility. The frozen spec at 5%, 15% and 20% risk per euro, with 1 and 3 fixed contracts, without interest, at 0.5, 1 and 2 bp per side, from a 2002 start and on the OIS-spliced price series; ECB rate momentum on the OIS-spliced series. No signal parameter was tuned on these runs.
 
 ## 4. Results
 
@@ -321,14 +415,20 @@ The 10% volatility target and the volatility blend are my choices, not part of t
 {row(FZ, bold=True, base=LO)}
 {row(WF, base=LO)}
 {row(EC, base=LO)}
-{row(LO, "Long-only, 10% vol (benchmark)", base=LO)}
-{row(TR, "12M trend, 10% vol (benchmark)", base=LO)}
-{row("Frozen, 5% vol target", base=LO)}
-{row("Frozen, 15% vol target", base=LO)}
-{row("Frozen, 20% vol target", base=LO)}
-{row("Frozen, 60-day vol only (no long-run blend)", "Frozen, 60-day vol only", base=LO)}
+{row(LO, "Long-only, per-euro sizing (benchmark)", base=LO)}
+{row(TR, "12M trend, per-euro sizing (benchmark)", base=LO)}
+{row(V1, base=LO)}
+{row(V1E, base=LO)}
+{row("Follow-the-ECB, DFR only, per-euro sizing", base=LO)}
+{row(FV, base=LO)}
+{row(EV, base=LO)}
+{row("Frozen, 10% vol target, 60-day vol only", base=LO)}
+{row("Frozen, 5% risk per euro", base=LO)}
+{row("Frozen, 15% risk per euro", base=LO)}
+{row("Frozen, 20% risk per euro", base=LO)}
 {row("Frozen, fixed 1 contract", base=LO)}
 {row("Frozen, fixed 3 contracts", base=LO)}
+{row("Frozen, no interest on cash", base=LO)}
 {row("Frozen, cost 0.5 bp/side", base=LO)}
 {row("Frozen, cost 1 bp/side", base=LO)}
 {row("Frozen, cost 2 bp/side", base=LO)}
@@ -340,14 +440,14 @@ Frozen spec, account detail:
 
 | Measure | Value |
 |---|---|
-| Total P&L | {seur(S.loc[FZ, "pnl_eur"])} on €50,000 |
-| Realised volatility | {pc(S.loc[FZ, "vol_pct"])} a year against the 10% target |
+| Total P&L | {seur(S.loc[FZ, "pnl_eur"])} on €50,000: {seur(S.loc[FZ, "trading_pnl_eur"])} trading, {seur(S.loc[FZ, "interest_eur"])} interest |
+| Realised volatility | {pc(S.loc[FZ, "vol_pct"])} a year; the rule aims at 10% only when volatility is at its 1999–2007 average |
 | Worst drawdown | {pc(S.loc[FZ, "maxdd_pct"])} ({eur(S.loc[FZ, "maxdd_eur"])} at its deepest in euros), {peak:%b %Y} to {trough:%b %Y}, recovered {rec[0]:%b %Y} |
 | Longest time under water | {under} trading days |
 | Worst month / best month | {pc(S.loc[FZ, "worst_month_pct"])} ({wm:%b %Y}) / {spc(S.loc[FZ, "best_month_pct"])} ({bm:%b %Y}) |
-| Winning months | {S.loc[FZ, "hit_pct"]:.0f}% |
-| Contracts held | average {S.loc[FZ, "avg_contracts"]:.1f}, range {int(d["contracts"].abs().min())} to {int(S.loc[FZ, "max_contracts"])} as equity grew and volatility fell |
-| Costs paid | {eur(fees)}, about {fees / gross:.0%} of gross profit |
+| Winning months, over cash | {S.loc[FZ, "hit_pct"]:.0f}% |
+| Contracts held | average {S.loc[FZ, "avg_contracts"]:.1f}, range {int(d["contracts"].abs().min())} to {int(S.loc[FZ, "max_contracts"])} as equity grew |
+| Costs paid | {eur(fees)}, about {fees / gross_eur:.0%} of gross trading profit |
 | Direction changes | {flips} in {yrs:.1f} years; position resized in {resized} of {len(m)} months |
 
 Margin deployed (Figure 7, bottom panel):
@@ -359,18 +459,19 @@ Margin deployed (Figure 7, bottom panel):
 
 Calendar years, frozen spec:
 
-| Year | P&L € | Return | Year-end equity | Avg contracts (+ long, − short) |
-|---|---|---|---|---|
-""" + "\n".join(f"| {y if y != 2026 else '2026 (to Aug)'} | {('+' if r.pnl_eur >= 0 else MINUS)}{abs(r.pnl_eur):,.0f} | {spc(r.ret_pct)} | {r.equity_end:,.0f} | {sg(r.avg_contracts, 1)} |"
-                for y, r in YR.iterrows()) + f"""
+| Year | Trading P&L € | Interest € | Return | Year-end equity | Avg contracts (+ long, − short) |
+|---|---|---|---|---|---|
+""" + "\n".join(f"| {y_ if y_ != 2026 else '2026 (to Aug)'} | {('+' if r.pnl_eur >= 0 else MINUS)}{abs(r.pnl_eur):,.0f} | "
+                f"{('+' if r.interest_eur >= 0 else MINUS)}{abs(r.interest_eur):,.0f} | {spc(r.ret_pct)} | {r.equity_end:,.0f} | {sg(r.avg_contracts, 1)} |"
+                for y_, r in YR.iterrows()) + f"""
 
 ![Figure 6. Equity and drawdown, January 2008 to August 2026](figures/fig6_bt50k_equity.png)
 
-*Figure 6. Account equity for the four strategies and the frozen spec's drawdown.*
+*Figure 6. Account equity for the four strategies and v1 as reported (log scale), and the frozen spec's drawdown.*
 
 ![Figure 7. Signal, volatility, contracts and margin](figures/fig7_bt50k_signal_vol_margin.png)
 
-*Figure 7. The signal, the volatility used for sizing, contracts held and margin deployed.*
+*Figure 7. The signal, the contract's volatility against the fixed sizing volatility, contracts held and margin deployed.*
 
 ## 5. Robustness
 
@@ -379,16 +480,61 @@ Calendar years, frozen spec:
 | Sharpe by period | 2008–12 crisis | 2013–19 ZLB/QE | 2020–21 COVID | 2022–26 hikes + cuts |
 |---|---|---|---|---|
 """ + "\n".join(f"| {lab} | " + " | ".join(sg(SUB.loc[key_, c]) for c in SUB.columns) + " |"
-                for lab, key_ in [("Frozen spec", FZ), ("Walk-forward threshold", WF), ("Follow-the-ECB", EC), ("Long-only", LO)]) + f"""
+                for lab, key_ in [("Frozen spec", FZ), ("Walk-forward threshold", WF), ("Follow-the-ECB", EC), ("Long-only", LO),
+                                  ("v1 as reported", V1)]) + f"""
 
-{share('2008', '2012'):.0%} of the account's growth came in 2008–12, {share('2022', '2026'):.0%} in 2022–26 and {share('2013', '2021'):.0%} in the nine years 2013–21. The best 5 months are {top5:.0%} of total P&L and the best 10 are {top10:.0%}.
+{share('2008', '2012'):.0%} of the account's growth came in 2008–12, {share('2022', '2026'):.0%} in 2022–26 and {share('2013', '2021'):.0%} in the nine years 2013–21. The best 5 months are {top5:.0%} of trading P&L and the best 10 are {top10:.0%}.
 
-**Monte Carlo, block bootstrap** (12-month blocks, 10,000 paths of 224 months, account returns):
+**What the override adds.** In basis points, each version's override rests on one episode. Gain over the plain rule, one contract, gross, by month-end decision (the P&L is the following month):
 
-| | Frozen spec | Walk-forward | Follow-the-ECB | Long-only |
+| Spec | Decided | Months | Override position | Gain over the rule |
+|---|---|---|---|---|
+{ep_rows("v2 (frozen)", ep2, "rule")}
+{ep_rows("v1", ep1, "rule")}
+
+v1's value was October 2008, when the deposit-rate anchor was wrong; the both-rates anchor is already long that month. What is left for v2 is the 2021–22 inflation short: {len(fire_dates)} months from {fire_dates[0]:%B %Y} to {fire_dates[-1]:%B %Y}, net {sg(ov2, 0)} bp. Its value depends on the sizing rule:
+
+| Sharpe | One contract | Per-euro sizing | 10% volatility target |
+|---|---|---|---|
+| Frozen spec | {sg(u1)} | {sg(S.loc[FZ, 'sharpe'])} | {sg(S.loc[FV, 'sharpe'])} |
+| ECB rate momentum alone | {sg(u1_ecb)} | {sg(S.loc[EC, 'sharpe'])} | {sg(S.loc[EV, 'sharpe'])} |
+| What the override adds | {sg0(u1 - u1_ecb)} | {sg0(S.loc[FZ, 'sharpe'] - S.loc[EC, 'sharpe'])} | {sg0(S.loc[FV, 'sharpe'] - S.loc[EV, 'sharpe'])} |
+
+Under the volatility target, record-low volatility in 2021 put on large inflation shorts while they paid, and the July 2022 loss came on a smaller position. With size fixed per euro that effect goes, and so does the override's value. Read the override as one episode whose value depends on sizing, not as a source of return.
+
+**Threshold.** No longer a knife-edge. On one contract every threshold from 0.1 to 1.5 gives {sg(t2.min())} to {sg(t2.max())}, against {sg(rule_only)} for the anchor alone; v1 ranged from {sg(t1.min())} to {sg(t1.max())}, with 0.5 at the peak. A walk-forward threshold picks {taus['2008']} until {tau_change - 1} and {taus[str(tau_change)]} from {tau_change}, and scores {sg(S.loc[WF, 'sharpe'])} in the account.
+
+**Sizing.** The volatility target worked against the signal. Split by the v1 sizing volatility at each month-end:
+
+| Volatility third | Months | Avg sizing volatility | Contracts per €50,000, 10% target | Contracts per €50,000, per-euro | P&L per contract, bp a month | Sharpe per contract | Share of one-contract P&L |
+|---|---|---|---|---|---|---|---|
+""" + "\n".join(f"| {lab} | {v[0]} | {v[1]:.0f} bp | {v[2]:.1f} | {per50:.1f} | {sg(v[3], 1)} | {sg(v[4])} | {pc(v[5] * 100, 0)} |" for lab, v in terc.items()) + f"""
+
+*Frozen spec on one contract, gross, January 2008 to August 2026.*
+
+With the same signals, per-euro sizing scores {sg(S.loc[FZ, 'sharpe'])} against {sg(S.loc[FV, 'sharpe'])} at the 10% target and {sg(S.loc['Frozen, 10% vol target, 60-day vol only', 'sharpe'])} with unblended 60-day volatility. The cost is risk. Realised volatility is {pc(S.loc[FZ, 'vol_pct'])} a year, not 10%, because the account holds full size through 2008 and 2022–23, when the contract's volatility peaked at {peak08:.0f} and {peak22:.0f} times σ. The worst month was the first, {wm:%B %Y} ({pc(S.loc[FZ, 'worst_month_pct'])}). At 5% risk per euro, volatility is {pc(S.loc['Frozen, 5% risk per euro', 'vol_pct'])} and the worst drawdown {pc(S.loc['Frozen, 5% risk per euro', 'maxdd_pct'])}; at 20% they are {pc(S.loc['Frozen, 20% risk per euro', 'vol_pct'])} and {pc(S.loc['Frozen, 20% risk per euro', 'maxdd_pct'])}. Any further sizing variant tested on this sample counts as another trial.
+
+**Synthetic price error.** Against {int(err['days'])} days of real Eurex settlements ({pd.Timestamp(err['first']):%-d %B} to {pd.Timestamp(err['last']):%-d %B %Y}, contracts matched by expiry month) the synthetic is {sg(err['mean_bp'], 1)} bp off on average, with a standard deviation of {err['sd_bp']:.1f} bp; the error persists (day-to-day autocorrelation {err['ar1']:.2f}) and daily changes correlate {err['change_corr']:.2f}. Added to the whole history as a persistent random error, signals unchanged, an error of that size gives these one-contract Sharpe ratios:
+
+| One-contract Sharpe | No added error | Measured size, median (5th–95th) | Twice the size, median |
+|---|---|---|---|
+""" + "\n".join(f"| {lab} | {sg(ERR.loc[k_, 'none'])} | {sg(ERR.loc[k_, 'measured_p50'])} ({ERR.loc[k_, 'measured_p05']:.2f}–{ERR.loc[k_, 'measured_p95']:.2f}) | {sg(ERR.loc[k_, 'twice_p50'])} |"
+                for lab, k_ in [("Frozen spec", "Frozen spec"), ("ECB rate momentum, both rates", "Follow-the-ECB"), ("v1 spec", "v1 spec"),
+                                ("ECB rate momentum, deposit rate only", "Follow-the-ECB, DFR only"), ("Long-only", "Long-only")]) + f"""
+
+The bound is pessimistic, since the added error only adds variance, and the ranking does not change. Quote the frozen spec's one-contract Sharpe as roughly {lo_q:.1f} to {hi_q:.1f}, not as a point.
+
+**No-skill nulls**, the stronger test (the long/short path shifted or block-shuffled in time, position sizes left on their dates):
+
+| | Observed Sharpe | Null mean | Null 95th pct | p, circular shift | p, block permutation |
+|---|---|---|---|---|---|
+""" + "\n".join(f"| {k_} | {sg(v['observed'])} | {sg(v['perm_mean'])} | {sg(v['perm_p95'])} | {pv(v['p_shift'], 212)} | {pv(v['p_perm'], 3000)} |" for k_, v in nl.items()) + f"""
+
+**Block bootstrap** (12-month blocks, 10,000 paths of {len(m)} months, account returns). It resamples the strategy's own months, so every path contains 2008 and 2022: it shows how much the order of returns matters, not that the edge is proven.
+
+| | Frozen spec | Walk-forward | ECB rate momentum | Long-only |
 |---|---|---|---|---|
 | Sharpe, 5th / 50th / 95th percentile | """ + " | ".join(f"{sg(bs[k_]['p05'])} / {sg(bs[k_]['p50'])} / {sg(bs[k_]['p95'])}" for k_ in bs) + f""" |
-| P(Sharpe > 0) | """ + " | ".join(f"{bs[k_]['prob_gt0']:.0%}" for k_ in bs) + f""" |
 | P(beats long-only) / P(beats ECB rule) | {bs['Frozen spec']['prob_beats_longonly']:.0%} / {bs['Frozen spec']['prob_beats_ecb']:.0%} | {bs['Walk-forward threshold']['prob_beats_longonly']:.0%} / {bs['Walk-forward threshold']['prob_beats_ecb']:.0%} | | |
 | Final equity, 5th / 50th / 95th | """ + " | ".join(f"{k(bp[k_]['final_p05'])} / {k(bp[k_]['final_p50'])} / {k(bp[k_]['final_p95'])}" for k_ in bp) + f""" |
 | P(ending below €50,000) | """ + " | ".join(f"{bp[k_]['prob_end_below_start']:.1%}" if bp[k_]['prob_end_below_start'] < 0.1 else f"{bp[k_]['prob_end_below_start']:.0%}" for k_ in bp) + f""" |
@@ -397,29 +543,33 @@ Calendar years, frozen spec:
 | First-year P&L, 5th / 50th / 95th | """ + " | ".join(f"{sk(bp[k_]['pnl1y_p05'])} / {sk(bp[k_]['pnl1y_p50'])} / {sk(bp[k_]['pnl1y_p95'])}" for k_ in bp) + f""" |
 | P(loss after 1 year / 5 years) | """ + " | ".join(f"{bp[k_]['prob_loss_1y']:.0%} / {bp[k_]['prob_loss_5y']:.0%}" for k_ in bp) + f""" |
 
-**No-skill nulls** (the long/short path shifted or block-shuffled in time, position sizes left on their dates):
-
-| | Observed Sharpe | Null mean | Null 95th pct | p, circular shift | p, block permutation |
-|---|---|---|---|---|---|
-""" + "\n".join(f"| {k_} | {sg(v['observed'])} | {sg(v['perm_mean'])} | {sg(v['perm_p95'])} | {pv(v['p_shift'], 212)} | {pv(v['p_perm'], 3000)} |" for k_, v in nl.items()) + f"""
-
-**Deflated Sharpe** (expected best-of-N Sharpe under the null: {sr0_45} for 45 trials, {sr0_70} for 70): frozen spec {ds['Frozen spec']['dsr_45']:.2f} / {ds['Frozen spec']['dsr_70']:.2f}, walk-forward threshold {ds['Walk-forward threshold']['dsr_45']:.2f} / {ds['Walk-forward threshold']['dsr_70']:.2f}, follow-the-ECB {ds['Follow-the-ECB']['dsr_45']:.2f} / {ds['Follow-the-ECB']['dsr_70']:.2f}, long-only {ds['Long-only']['dsr_45']:.2f} / {ds['Long-only']['dsr_70']:.2f}. Monthly returns have skew {sg(ds['Frozen spec']['skew'])} and kurtosis {ds['Frozen spec']['kurt']:.1f}.
+**Deflated Sharpe** (expected best-of-N Sharpe under the null: {dfl['sr0_file']:.2f} for the {dfl['n_file']} variants on file, {dfl['sr0_total']:.2f} for about {dfl['n_total']} looks at this sample in all): frozen spec {ds['Frozen spec']['dsr_file']:.2f} / {ds['Frozen spec']['dsr_total']:.2f}, walk-forward threshold {ds['Walk-forward threshold']['dsr_file']:.2f} / {ds['Walk-forward threshold']['dsr_total']:.2f}, ECB rate momentum {ds['Follow-the-ECB']['dsr_file']:.2f} / {ds['Follow-the-ECB']['dsr_total']:.2f}, long-only {ds['Long-only']['dsr_file']:.2f} / {ds['Long-only']['dsr_total']:.2f}. Monthly returns have skew {sg(ds['Frozen spec']['skew'])} and kurtosis {ds['Frozen spec']['kurt']:.1f}.
 
 ![Figure 8. Monte Carlo, full window](figures/fig8_bt50k_montecarlo.png)
 
 *Figure 8. Bootstrap Sharpe with medians, bootstrap equity paths, bootstrap drawdown, and the no-skill shuffle test.*
 
-**Sizing.** Volatility targeting costs Sharpe here: {sg(S.loc['Frozen, fixed 1 contract', 'sharpe'])} with one fixed contract against {sg(S.loc[FZ, 'sharpe'])} at a 10% target, because the strategy earns most when volatility is high, which is when the target cuts the position. Without the long-run blend the account ran up to {int(S.loc['Frozen, 60-day vol only (no long-run blend)', 'max_contracts'])} contracts in the zero-rate years and Sharpe fell to {sg(S.loc['Frozen, 60-day vol only (no long-run blend)', 'sharpe'])}. Higher targets scale return and drawdown together (20% target: {pc(S.loc['Frozen, 20% vol target', 'maxdd_pct'])} drawdown, a {pc(S.loc['Frozen, 20% vol target', 'worst_month_pct'], 0)} month).
+**Costs.** Sharpe {sg(S.loc['Frozen, cost 0.5 bp/side', 'sharpe'])} at 0.5 bp per side (one full tick), {sg(S.loc['Frozen, cost 1 bp/side', 'sharpe'])} at 1 bp and {sg(S.loc['Frozen, cost 2 bp/side', 'sharpe'])} at 2 bp. Rolls are {sides_roll / (sides_roll + sides_trade):.0%} of the contract-sides traded: the account rolls about {S.loc[FZ, 'avg_contracts']:.0f} contracts four times a year, against {flips} direction changes in {yrs:.1f} years.
 
-**Costs.** Sharpe {sg(S.loc['Frozen, cost 0.5 bp/side', 'sharpe'])} at 0.5 bp per side (one full tick), {sg(S.loc['Frozen, cost 1 bp/side', 'sharpe'])} at 1 bp and {sg(S.loc['Frozen, cost 2 bp/side', 'sharpe'])} at 2 bp. Rolls are {sides_roll / (sides_roll + sides_trade):.0%} of the contract-sides traded: at a 10% target the account rolls about {S.loc[FZ, 'avg_contracts']:.0f} contracts four times a year, against {flips} direction changes in {yrs:.1f} years.
+**Instrument.** On the OIS-spliced prices for 2005–14 the frozen spec is {sg(S.loc['Frozen, OIS-spliced prices 2005-14', 'sharpe'])} ({k(S.loc['Frozen, OIS-spliced prices 2005-14', 'final_equity'])}) against {sg(S.loc[FZ, 'sharpe'])} ({k(S.loc[FZ, 'final_equity'])}); ECB rate momentum goes from {sg(S.loc[EC, 'sharpe'])} to {sg(S.loc['Follow-the-ECB, OIS-spliced prices', 'sharpe'])}.
 
-**Instrument.** On the OIS-spliced prices for 2005–14 the frozen spec is {sg(S.loc['Frozen, OIS-spliced prices 2005-14', 'sharpe'])} ({k(S.loc['Frozen, OIS-spliced prices 2005-14', 'final_equity'])}) against {sg(S.loc[FZ, 'sharpe'])} ({k(S.loc[FZ, 'final_equity'])}); follow-the-ECB goes from {sg(S.loc[EC, 'sharpe'])} to {sg(S.loc['Follow-the-ECB, OIS-spliced prices', 'sharpe'])}.
+**Margin and cash.** Margin is never the constraint. It averaged {pc(S.loc[FZ, 'avg_margin_pct'])} of equity and peaked at {pc(S.loc[FZ, 'peak_margin_pct'])}; with margin scaled up with volatility the peak is {pc(S.loc[FZ, 'peak_margin_stress_pct'])}. Interest on the rest added {eur(S.loc[FZ, 'interest_eur'])}: CAGR {pc(S.loc[FZ, 'cagr_pct'])} against {pc(S.loc['Frozen, no interest on cash', 'cagr_pct'])} without it, with the Sharpe over cash unchanged ({sg(S.loc[FZ, 'sharpe'])} and {sg(S.loc['Frozen, no interest on cash', 'sharpe'])}). Negative rates in 2015–22 cost little because they were shallow.
 
-**Margin.** Margin is never the constraint. It averaged {pc(S.loc[FZ, 'avg_margin_pct'])} of equity and peaked at {pc(S.loc[FZ, 'peak_margin_pct'])}; even with margin scaled up with volatility the peak stays at {pc(S.loc[FZ, 'peak_margin_stress_pct'])}. The binding limit is the volatility target, and 95% of the account sits in cash, which this backtest credits no interest on.
+## 6. Verdict
+**Context-dependent: accept as a diversifier, and read it as ECB rate momentum.** After the review's four changes the account earns {sg(S.loc[FZ, 'sharpe'])} over cash ({pc(S.loc[FZ, 'cagr_pct'])} CAGR, {pc(S.loc[FZ, 'maxdd_pct'])} worst drawdown) against {sg(S.loc[V1, 'sharpe'])} for v1 as reported. The gain comes from the corrected anchor and a sizing rule that no longer works against the signal; the override adds {sg0(S.loc[FZ, 'sharpe'] - S.loc[EC, 'sharpe'])} Sharpe.
+
+Caveats, in order of importance:
+
+1. **Multiple testing.** About {dfl['n_total']} looks have been taken at the same {len(m)} months, including the review's and the v2 choices. The deflated Sharpe at that count is {ds['Frozen spec']['dsr_total']:.2f}.
+2. **The five inputs were chosen after seeing the review's factor table.** The choice rests on economics, but it is not blind. The override fires in {len(fire_dates)} months of {len(fire)} and adds nothing, so the inputs matter little to the result.
+3. **Prices are synthetic.** The measured pricing error puts the one-contract Sharpe at roughly {lo_q:.1f} to {hi_q:.1f}. Real ICE prices exist from December 2018 (Databento); rerunning on them is the check that matters most.
+4. **Regime dependence.** Three ECB cycles in the sample; on-hold months earn {sg(regime['ECB on hold for 6 months or more'][1], 1)} bp a month on one contract; 2013–21 added {share('2013', '2021'):.0%} of the growth.
+5. **Risk is above the nominal 10%.** Realised volatility {pc(S.loc[FZ, 'vol_pct'])}, worst month {pc(S.loc[FZ, 'worst_month_pct'])}. Size fixed per euro means full size in a crisis; 5% risk per euro halves both.
+6. **Uncorrelated, not a hedge** (appendix B). Present it as an independent return stream.
+7. **Hold-out.** Every month from September 2026 is out of sample; nothing in v2 was fitted to it.
 """
 
     # ---------- appendix A: last five years
-    FZ5, EC5 = FZ, EC
     e5 = d5["equity"]
     dd5 = e5 / e5.cummax() - 1
     tr5 = dd5.idxmin()
@@ -432,47 +582,55 @@ Calendar years, frozen spec:
         runs.append((("Short" if g["contracts"].iloc[0] < 0 else "Long"), g.index[0] + pd.offsets.MonthEnd(1), g.index[-1] + pd.offsets.MonthEnd(1),
                      len(g), g["chg_pts"].sum() * 100, g["pnl"].sum()))
     flips5 = [(t + pd.offsets.MonthEnd(1)) for t in m5.index[np.sign(m5["contracts"]).diff().abs() > 0]]
-    fire = ((score.abs() > 0.5) & (np.sign(score) != ecb)).loc["2021-08-31":"2026-07-31"]
-    n_fire = int(fire.sum())
-    ov_move = cont["chg1"].loc["2021-09-01":"2022-07-31"].sum() * 100
-    ov_pos = m5.loc[fire[fire].index]
-    ov_gain = ov_pos[ov_pos["pnl"] > 0]["contracts"].abs()
+    fire5 = ((score.abs() > OVERRIDE_THRESHOLD) & (np.sign(score) != ecb)).loc["2021-08-31":"2026-07-31"]
+    f5 = fire5[fire5].index
+    ov_move = cont["chg1"].loc[f5[0] + pd.Timedelta(days=1):f5[-1] + pd.offsets.MonthEnd(1)].sum() * 100
+    ov_pos = m5.loc[f5, "contracts"].abs()
     jul = m5.loc["2022-06-30"]
     worst_long = m5.loc[(m5["contracts"] > 0)].sort_values("pnl").iloc[0]
-    prelong = m5.loc["2025-10-31":"2026-01-31", "contracts"]
-    bs5, bp5, nl5, ds5 = mc5["bootstrap_sharpe"], mc5["bootstrap_pnl"], mc5["nulls"], mc5["deflated"]
     tot5 = m5["pnl"].sum()
+    big = max(runs, key=lambda r: r[5])
+    long_run = max((r for r in runs if r[0] == "Long"), key=lambda r: r[3])
     top5_5 = m5["pnl"].nlargest(5).sum() / tot5
     mp5 = d5["margin_pct"]
+    bs5, bp5, nl5, ds5 = mc5["bootstrap_sharpe"], mc5["bootstrap_pnl"], mc5["nulls"], mc5["deflated"]
+    wf_line = ("The walk-forward threshold is 0.5 in every one of these years, so it equals the frozen spec." if mc5["wf_equals_frozen"]
+               else f"The walk-forward threshold is {taus['2026']} in these years, not 0.5, so it is shown separately.")
 
     def row5(name, label=None, bold=False):
-        r = S5.loc[name]
-        cells = [label or name, sg(r["sharpe"]), pc(r["cagr_pct"]), pc(r["maxdd_pct"]), eur(r["final_equity"]),
-                 ("0" if name == LO else sg(r["sharpe"] - S5.loc[LO, "sharpe"]))]
-        return "| " + " | ".join(f"**{c}**" if bold else c for c in cells) + " |"
+        return row(name, label, bold, base=LO, table=S5)
 
-    def yl(y):
-        return {2021: "2021 (Sep–Dec)", 2026: "2026 (Jan–Aug)"}.get(y, str(y))
+    def yl(y_):
+        return {2021: "2021 (Sep–Dec)", 2026: "2026 (Jan–Aug)"}.get(y_, str(y_))
+
+    sy_cols = {"Frozen spec": "Frozen spec", "Walk-forward threshold": "Walk-forward", "Follow-the-ECB": "ECB rate momentum", "Long-only": "Long-only",
+               "Frozen spec, 1 contract": "Frozen spec, 1 contract", "Follow-the-ECB, 1 contract": "ECB rate momentum, 1 contract"}
 
     APPA = f"""# Appendix A. The last five years: September 2021 to August 2026
 
-A new €50,000 account opened on 1 September 2021, same rules, sizing, costs ({CB} bp per side) and margin as the main test. 60 months, covering the 2022–23 hiking cycle, the 2024–25 cuts and the June 2026 hike. The walk-forward threshold is 0.5 in every one of these years, so it is the frozen spec here and is not shown separately. Output: `results/bt50k_5y_*.csv`, figures `reports/figures/fig9_bt50k_5y_account.png` and `reports/figures/fig10_bt50k_5y_montecarlo.png`. Both pages in one file: `reports/figures/bt50k_5y_pages.pdf` (page 1 account, page 2 Sharpe and Monte Carlo analysis).
+A new €50,000 account opened on 1 September 2021, with the same rules, sizing (σ = {sig0:.0f} bp, so {int(round(per50))} contracts at the start), costs ({CB} bp per side), cash interest and margin as the main test. 60 months, covering the 2022–23 hiking cycle, the 2024–25 cuts and the June 2026 hike. {wf_line} Output: `results/bt50k_5y_*.csv`, figures `reports/figures/fig9_bt50k_5y_account.png` and `reports/figures/fig10_bt50k_5y_montecarlo.png`. Both pages in one file: `reports/figures/bt50k_5y_pages.pdf` (page 1 account, page 2 Sharpe and Monte Carlo analysis).
 
 ## A1. Results
 
 | Variant | Sharpe | CAGR | Max DD | Final equity | Sharpe vs long-only |
 |---|---|---|---|---|---|
-{row5(FZ5, bold=True)}
-{row5(EC5)}
-{row5(LO, "Long-only, 10% vol (benchmark)")}
-{row5(TR, "12M trend, 10% vol (benchmark)")}
-{row5("Frozen, 5% vol target")}
-{row5("Frozen, 15% vol target")}
-{row5("Frozen, 20% vol target")}
-{row5("Frozen, 60-day vol only (no long-run blend)", "Frozen, 60-day vol only")}
+{row5(FZ, bold=True)}
+{row5(WF)}
+{row5(EC)}
+{row5(LO, "Long-only, per-euro sizing (benchmark)")}
+{row5(TR, "12M trend, per-euro sizing (benchmark)")}
+{row5(V1)}
+{row5(V1E)}
+{row5(FV)}
+{row5(EV)}
+{row5("Frozen, 10% vol target, 60-day vol only")}
+{row5("Frozen, 5% risk per euro")}
+{row5("Frozen, 15% risk per euro")}
+{row5("Frozen, 20% risk per euro")}
 {row5("Frozen, fixed 1 contract")}
 {row5("Frozen, fixed 3 contracts")}
 {row5("Follow-the-ECB, fixed 3 contracts")}
+{row5("Frozen, no interest on cash")}
 {row5("Frozen, cost 0.5 bp/side")}
 {row5("Frozen, cost 1 bp/side")}
 {row5("Frozen, cost 2 bp/side")}
@@ -481,27 +639,28 @@ Frozen spec, account detail:
 
 | Measure | Value |
 |---|---|
-| Total P&L | {seur(S5.loc[FZ5, "pnl_eur"])} on €50,000 |
-| Realised volatility | {pc(S5.loc[FZ5, "vol_pct"])} a year against the 10% target |
-| Worst drawdown | {pc(S5.loc[FZ5, "maxdd_pct"])}, from {pk5:%B %Y} to {tr5:%B %Y}, {"recovered " + rec5[0].strftime("%B %Y") if len(rec5) else "not yet recovered at end-August 2026"} |
-| Worst month / winning months | {pc(S5.loc[FZ5, "worst_month_pct"])} ({wm5:%B %Y}) / {S5.loc[FZ5, "hit_pct"]:.0f}% |
-| Contracts held | average {S5.loc[FZ5, "avg_contracts"]:.1f}, range {int(d5["contracts"].abs().min())} to {int(S5.loc[FZ5, "max_contracts"])} |
-| Margin deployed | average {eur(d5["margin"].mean())} ({pc(S5.loc[FZ5, "avg_margin_pct"])} of equity), peak {eur(d5["margin"].max())}; peak share {pc(S5.loc[FZ5, "peak_margin_pct"])} in {mp5.idxmax():%B %Y} |
+| Total P&L | {seur(S5.loc[FZ, "pnl_eur"])} on €50,000: {seur(S5.loc[FZ, "trading_pnl_eur"])} trading, {seur(S5.loc[FZ, "interest_eur"])} interest |
+| Realised volatility | {pc(S5.loc[FZ, "vol_pct"])} a year |
+| Worst drawdown | {pc(S5.loc[FZ, "maxdd_pct"])}, from {pk5:%B %Y} to {tr5:%B %Y}, {"recovered " + rec5[0].strftime("%B %Y") if len(rec5) else "not yet recovered at end-August 2026"} |
+| Worst month / winning months | {pc(S5.loc[FZ, "worst_month_pct"])} ({wm5:%B %Y}) / {S5.loc[FZ, "hit_pct"]:.0f}% |
+| Contracts held | average {S5.loc[FZ, "avg_contracts"]:.1f}, range {int(d5["contracts"].abs().min())} to {int(S5.loc[FZ, "max_contracts"])} |
+| Margin deployed | average {eur(d5["margin"].mean())} ({pc(S5.loc[FZ, "avg_margin_pct"])} of equity), peak {eur(d5["margin"].max())}; peak share {pc(S5.loc[FZ, "peak_margin_pct"])} in {mp5.idxmax():%B %Y} |
 | Costs paid | {eur(d5["fees"].sum())} |
-| Direction changes | {len(flips5)} ({", ".join(("to long" if m5.loc[t - pd.offsets.MonthEnd(1), "contracts"] > 0 else "to short") + " at end-" + (t - pd.offsets.MonthEnd(1)).strftime("%B %Y") for t in flips5)}); override fired in {n_fire} months, all September 2021 to July 2022 |
+| Direction changes | {len(flips5)} ({", ".join(("to long" if m5.loc[t - pd.offsets.MonthEnd(1), "contracts"] > 0 else "to short") + " at end-" + (t - pd.offsets.MonthEnd(1)).strftime("%B %Y") for t in flips5)}); override fired in {len(f5)} months, {f5[0]:%B %Y} to {f5[-1]:%B %Y} |
 
 By position run:
 
-| Run | Months | 2nd contract move | P&L |
+| Run | Months | 2nd contract move | Trading P&L |
 |---|---|---|---|
 """ + "\n".join(f"| {a}, {b:%b %Y} to {c:%b %Y} | {n} | {sg(mv, 0)} bp | {seur(p)} |" for a, b, c, n, mv, p in runs) + f"""
 
 By calendar year:
 
-| Year | P&L € | Return | Year-end equity | Avg contracts (+ long, − short) | Avg margin, share of equity |
-|---|---|---|---|---|---|
-""" + "\n".join(f"| {yl(y)} | {('+' if r.pnl_eur >= 0 else MINUS)}{abs(r.pnl_eur):,.0f} | {spc(r.ret_pct)} | {r.equity_end:,.0f} | {sg(r.avg_contracts, 1)} | {pc(r.avg_margin_pct)} |"
-                for y, r in YR5.iterrows()) + f"""
+| Year | Trading P&L € | Interest € | Return | Year-end equity | Avg contracts (+ long, − short) | Avg margin, share of equity |
+|---|---|---|---|---|---|---|
+""" + "\n".join(f"| {yl(y_)} | {('+' if r.pnl_eur >= 0 else MINUS)}{abs(r.pnl_eur):,.0f} | {('+' if r.interest_eur >= 0 else MINUS)}{abs(r.interest_eur):,.0f} | "
+                f"{spc(r.ret_pct)} | {r.equity_end:,.0f} | {sg(r.avg_contracts, 1)} | {pc(r.avg_margin_pct)} |"
+                for y_, r in YR5.iterrows()) + f"""
 
 ![Figure 9. Last five years: account page](figures/fig9_bt50k_5y_account.png)
 
@@ -509,25 +668,11 @@ By calendar year:
 
 ## A2. Sharpe analysis and Monte Carlo
 
-Sharpe by calendar year (2021 = Sep–Dec, 2026 = Jan–Aug):
+Sharpe over cash by calendar year (2021 = Sep–Dec, 2026 = Jan–Aug):
 
-| Year | Frozen spec, 10% vol | Follow-the-ECB, 10% vol | Long-only, 10% vol | Frozen spec, 1 contract | Follow-the-ECB, 1 contract |
-|---|---|---|---|---|---|
-""" + "\n".join(("| **All 60 months** | " + " | ".join(f"**{sg(v)}**" for v in r) + " |") if y == "all 60 months"
-                else ("| " + str(y) + " | " + " | ".join(sg(v) for v in r) + " |") for y, r in SY5.iterrows()) + f"""
-
-Block bootstrap, 12-month blocks, 10,000 paths of 60 months:
-
-| | Frozen spec | Follow-the-ECB | Long-only |
-|---|---|---|---|
-| Sharpe, 5th / 50th / 95th percentile | """ + " | ".join(f"{sg(bs5[k_]['p05'])} / {sg(bs5[k_]['p50'])} / {sg(bs5[k_]['p95'])}" for k_ in bs5) + f""" |
-| P(Sharpe > 0) | """ + " | ".join(f"{bs5[k_]['prob_gt0']:.0%}" for k_ in bs5) + f""" |
-| P(beats long-only) / P(beats ECB rule) | {bs5['Frozen spec']['prob_beats_longonly']:.0%} / {bs5['Frozen spec']['prob_beats_ecb']:.0%} | | |
-| Final equity, 5th / 50th / 95th | """ + " | ".join(f"{k(bp5[k_]['final_p05'])} / {k(bp5[k_]['final_p50'])} / {k(bp5[k_]['final_p95'])}" for k_ in bp5) + f""" |
-| P(ending below €50,000) | """ + " | ".join(f"{bp5[k_]['prob_end_below_start']:.0%}" for k_ in bp5) + f""" |
-| Max drawdown, median / 5th / 1st percentile | """ + " | ".join(f"{pc(bp5[k_]['maxdd_p50'], 0)} / {pc(bp5[k_]['maxdd_p05'], 0)} / {pc(bp5[k_]['maxdd_p01'], 0)}" for k_ in bp5) + f""" |
-| First-year P&L, 5th / 50th / 95th | """ + " | ".join(f"{sk(bp5[k_]['pnl1y_p05'])} / {sk(bp5[k_]['pnl1y_p50'])} / {sk(bp5[k_]['pnl1y_p95'])}" for k_ in bp5) + f""" |
-| P(loss after 1 year) | """ + " | ".join(f"{bp5[k_]['prob_loss_1y']:.0%}" for k_ in bp5) + f""" |
+| Year | """ + " | ".join(sy_cols[c] for c in SY5.columns) + " |\n|---|" + "---|" * len(SY5.columns) + "\n" + "\n".join(
+        ("| **All 60 months** | " + " | ".join(f"**{sg(v)}**" for v in r) + " |") if y_ == "all 60 months"
+        else ("| " + str(y_) + " | " + " | ".join(sg(v) for v in r) + " |") for y_, r in SY5.iterrows()) + f"""
 
 No-skill nulls (6-month blocks, because 60 months hold only five 12-month blocks):
 
@@ -535,7 +680,19 @@ No-skill nulls (6-month blocks, because 60 months hold only five 12-month blocks
 |---|---|---|---|---|---|
 """ + "\n".join(f"| {k_} | {sg(v['observed'])} | {sg(v['perm_mean'])} | {sg(v['perm_p95'])} | {pv(v['p_shift'], 48)} | {pv(v['p_perm'], 3000)} |" for k_, v in nl5.items()) + f"""
 
-Deflated Sharpe on 60 months (45 / 70 trials): frozen spec {ds5['Frozen spec']['dsr_45']:.2f} / {ds5['Frozen spec']['dsr_70']:.2f}, follow-the-ECB {ds5['Follow-the-ECB']['dsr_45']:.2f} / {ds5['Follow-the-ECB']['dsr_70']:.2f}. Monthly returns have skew {sg(ds5['Frozen spec']['skew'])} and kurtosis {ds5['Frozen spec']['kurt']:.1f}.
+Block bootstrap, 12-month blocks, 10,000 paths of 60 months (resampling this window's own months):
+
+| | Frozen spec | Walk-forward | ECB rate momentum | Long-only |
+|---|---|---|---|---|
+| Sharpe, 5th / 50th / 95th percentile | """ + " | ".join(f"{sg(bs5[k_]['p05'])} / {sg(bs5[k_]['p50'])} / {sg(bs5[k_]['p95'])}" for k_ in bs5) + f""" |
+| P(beats long-only) / P(beats ECB rule) | {bs5['Frozen spec']['prob_beats_longonly']:.0%} / {bs5['Frozen spec']['prob_beats_ecb']:.0%} | {bs5['Walk-forward threshold']['prob_beats_longonly']:.0%} / {bs5['Walk-forward threshold']['prob_beats_ecb']:.0%} | | |
+| Final equity, 5th / 50th / 95th | """ + " | ".join(f"{k(bp5[k_]['final_p05'])} / {k(bp5[k_]['final_p50'])} / {k(bp5[k_]['final_p95'])}" for k_ in bp5) + f""" |
+| P(ending below €50,000) | """ + " | ".join(f"{bp5[k_]['prob_end_below_start']:.0%}" for k_ in bp5) + f""" |
+| Max drawdown, median / 5th / 1st percentile | """ + " | ".join(f"{pc(bp5[k_]['maxdd_p50'], 0)} / {pc(bp5[k_]['maxdd_p05'], 0)} / {pc(bp5[k_]['maxdd_p01'], 0)}" for k_ in bp5) + f""" |
+| First-year P&L, 5th / 50th / 95th | """ + " | ".join(f"{sk(bp5[k_]['pnl1y_p05'])} / {sk(bp5[k_]['pnl1y_p50'])} / {sk(bp5[k_]['pnl1y_p95'])}" for k_ in bp5) + f""" |
+| P(loss after 1 year) | """ + " | ".join(f"{bp5[k_]['prob_loss_1y']:.0%}" for k_ in bp5) + f""" |
+
+Deflated Sharpe on 60 months ({dfl['n_file']} / {dfl['n_total']} trials): frozen spec {ds5['Frozen spec']['dsr_file']:.2f} / {ds5['Frozen spec']['dsr_total']:.2f}, ECB rate momentum {ds5['Follow-the-ECB']['dsr_file']:.2f} / {ds5['Follow-the-ECB']['dsr_total']:.2f}. Monthly returns have skew {sg(ds5['Frozen spec']['skew'])} and kurtosis {ds5['Frozen spec']['kurt']:.1f}.
 
 ![Figure 10. Monte Carlo, last five years](figures/fig10_bt50k_5y_montecarlo.png)
 
@@ -543,14 +700,14 @@ Deflated Sharpe on 60 months (45 / 70 trials): frozen spec {ds5['Frozen spec']['
 
 ## A3. Reading
 
-1. **One trade made the money.** {runs[0][5] / tot5:.0%} of the P&L is the {runs[0][3]}-month short through the hiking cycle. The two-year long through the cuts {"lost " + eur(-runs[1][5]) if runs[1][5] < 0 else "made " + eur(runs[1][5])} even though the contract rose {runs[1][4]:.0f} bp, because {(worst_long.name + pd.offsets.MonthEnd(1)):%B %Y} cost {eur(-worst_long['pnl'])} on {int(worst_long['contracts'])} contracts. The best 5 months are {top5_5:.0%} of the P&L.
-2. **The override added nothing on equal sizing.** With 3 fixed contracts the frozen spec ends at {eur(S5.loc['Frozen, fixed 3 contracts', 'final_equity'])} and plain follow-the-ECB at {eur(S5.loc['Follow-the-ECB, fixed 3 contracts', 'final_equity'])} (Sharpe {sg(S5.loc['Frozen, fixed 3 contracts', 'sharpe'])} and {sg(S5.loc['Follow-the-ECB, fixed 3 contracts', 'sharpe'])}; {sg(mc5['unit_check']['sharpe'])} and {sg(mc5['unit_check_ecb']['sharpe'])} on one contract). The 2nd contract moved {sg(ov_move, 0)} bp net over the {n_fire} override months. The gap at a 10% target ({sg(S5.loc[FZ5, 'sharpe'])} against {sg(S5.loc[EC5, 'sharpe'])}) comes from sizing: the override was short {int(ov_gain.min())} to {int(ov_gain.max())} contracts in the months it gained, and {int(abs(jul['contracts']))} contracts in July 2022, when the contract bounced {abs(jul['chg_pts']) * 100:.0f} bp against it.
-3. **Fixed contracts beat volatility targeting in this window.** Three fixed contracts made {"the same money as" if abs(S5.loc['Frozen, fixed 3 contracts', 'pnl_eur'] / S5.loc[FZ5, 'pnl_eur'] - 1) < 0.1 else eur(S5.loc['Frozen, fixed 3 contracts', 'pnl_eur']) + " against " + eur(S5.loc[FZ5, 'pnl_eur']) + " for"} the 10% target with a {pc(S5.loc['Frozen, fixed 3 contracts', 'maxdd_pct'])} drawdown instead of {pc(S5.loc[FZ5, 'maxdd_pct'])} and a worst month of {pc(S5.loc['Frozen, fixed 3 contracts', 'worst_month_pct'])} instead of {pc(S5.loc[FZ5, 'worst_month_pct'])}. Low volatility in late 2025 took the target to {int(prelong.min())} to {int(prelong.max())} contracts just before the {wm5:%B %Y} move.
+1. **One trade made the money.** {big[5] / tot5:.0%} of the trading P&L is the {big[3]}-month {big[0].lower()} from {big[1]:%B %Y} to {big[2]:%B %Y}. The {long_run[3]}-month long through the cuts {"lost " + eur(-long_run[5]) if long_run[5] < 0 else "made only " + eur(long_run[5])} although the contract rose {long_run[4]:.0f} bp, because {(worst_long.name + pd.offsets.MonthEnd(1)):%B %Y} cost {eur(-worst_long['pnl'])} on {int(worst_long['contracts'])} contracts. The best 5 months are {top5_5:.0%} of the trading P&L.
+2. **The override cost money here.** The frozen spec ends at {eur(S5.loc[FZ, 'final_equity'])} and ECB rate momentum alone at {eur(S5.loc[EC, 'final_equity'])} (Sharpe {sg(S5.loc[FZ, 'sharpe'])} and {sg(S5.loc[EC, 'sharpe'])}; {sg(mc5['unit_check']['sharpe'])} and {sg(mc5['unit_check_ecb']['sharpe'])} on one contract). The override was short {int(ov_pos.min()) if ov_pos.min() == ov_pos.max() else f"{int(ov_pos.min())} to {int(ov_pos.max())}"} contracts in its {len(f5)} months, over which the 2nd contract moved {sg(ov_move, 0)} bp; July 2022 alone cost {eur(-jul['pnl'])} on {int(abs(jul['contracts']))} contracts as the contract bounced {abs(jul['chg_pts']) * 100:.0f} bp. At the v1 10% target the same override looks like a gain ({sg(S5.loc[FV, 'sharpe'])} against {sg(S5.loc[EV, 'sharpe'])}), because 2021's low volatility put on more contracts while the shorts paid.
+3. **Per-euro sizing beat the volatility target in this window.** Sharpe {sg(S5.loc[FZ, 'sharpe'])} against {sg(S5.loc[FV, 'sharpe'])} on the same signals. The worst month was {wm5:%B %Y}, {pc(S5.loc[FZ, 'worst_month_pct'])} on {int(abs(m5.loc[wm5 - pd.offsets.MonthEnd(1), 'contracts']))} contracts; v1 as reported lost {pc(-S5.loc[V1, 'worst_month_pct'])} in its worst month, March 2026, after calm markets in late 2025 had taken its volatility target to as many as {int(S5.loc[V1, 'max_contracts'])} contracts.
 4. **This window is better than typical, not typical.** The rolling 60-month Sharpe of the 2008-start account is {sg(roll60.iloc[-1])} now against a median of {sg(roll60.median())} across {int(roll60.notna().sum())} windows (range {sg(roll60.min())} to {sg(roll60.max())}); the current window beats {(roll60.dropna() < roll60.iloc[-1]).mean():.0%} of them. Five years with a full hiking cycle and a cutting cycle are the conditions the rule is built for.
-5. **Sixty months, three position runs.** The shuffle tests reject luck (p = {nl5['Frozen spec']['p_perm']:.3f}), but with {len(flips5)} direction changes they have little to work with, and the bootstrap interval is wide: {sg(bs5['Frozen spec']['p05'])} to {sg(bs5['Frozen spec']['p95'])}.
+5. **Sixty months, {len(runs)} position runs.** The shuffle tests reject luck (p = {nl5['Frozen spec']['p_perm']:.3f}), but with {len(flips5)} direction changes they have little to work with, and the bootstrap interval is wide: {sg(bs5['Frozen spec']['p05'])} to {sg(bs5['Frozen spec']['p95'])}.
 6. **Prices are still synthetic here, and this is where they are weakest.** The synthetic takes its forward premium from the AAA government curve, and in 2022–23 short government yields moved away from Euribor-linked rates. Real ICE prices exist for this whole window (Databento, December 2018 onward); rerunning this page on them is the check that matters most.
 
-**Verdict for the window: context-dependent.** If the ECB keeps moving rates, the last five years support the plain follow-the-ECB rule at about Sharpe +1 on fixed contracts; they give no support for the override beyond the sizing effect, and none for volatility targeting over a fixed position. {len(S5)} further account variants were run for this page; no parameter was changed.
+**Verdict for the window: context-dependent.** If the ECB keeps moving rates, the last five years support ECB rate momentum at about Sharpe +1 with size fixed per euro; they give no support for the override. {len(S5)} account variants were run for this page; no parameter was changed.
 """
 
     # ---------- appendix B: correlation with the trend-following book (numbers from research/trend_correlation.py)
@@ -568,7 +725,7 @@ Deflated Sharpe on 60 months (45 / 70 trials): frozen spec {ds5['Frozen spec']['
 
     APPB = f"""# Appendix B. Correlation with the trend-following book
 
-Does the Euribor strategy add something the rest of the portfolio does not already have? Tested against the AlgoGators trend-following backtest (run `TREND_FOLLOWING_20260505_010930_346`, 34 CME markets, per-market daily P&L in dollars from `trend_risk/.../phase2/pnl_panel.csv`). Window 4 April 2011 to 30 April 2026: {nF[0]} days, {nF[2]} months. Euribor side: frozen spec on one contract unless stated. Script `research/trend_correlation.py`, output `results/trendcorr_*.csv`, `results/trendcorr.json`, figure `reports/figures/fig11_bt50k_trend_correlation.png`.
+Does the Euribor strategy add something the rest of the portfolio does not already have? Tested against the AlgoGators trend-following backtest (run `TREND_FOLLOWING_20260505_010930_346`, 34 CME markets, per-market daily P&L in dollars from `trend_risk/.../phase2/pnl_panel.csv`). Window 4 April 2011 to 30 April 2026: {nF[0]} days, {nF[2]} months. Euribor side: frozen spec (v2) on one contract unless stated. Script `research/trend_correlation.py`, output `results/trendcorr_*.csv`, `results/trendcorr.json`, figure `reports/figures/fig11_bt50k_trend_correlation.png`.
 
 ## B1. Correlations
 
@@ -586,7 +743,7 @@ Monthly correlation for the other Euribor versions:
 |---|---|---|---|---|
 """ + "\n".join(f"| {lab} | " + " | ".join(c2(v) for v in MCR.loc[key_]) + " |"
                 for lab, key_ in [("Frozen spec, 1 contract", "Frozen spec, 1 contract"),
-                                  ("Frozen spec, €50,000 account (10% vol target)", "Frozen spec, EUR 50k account"),
+                                  ("Frozen spec, €50,000 account (per-euro sizing, over cash)", "Frozen spec, EUR 50k account"),
                                   ("Follow-the-ECB, 1 contract", "Follow-the-ECB, 1 contract")]) + f"""
 
 Monthly correlation by sub-period and its sampling range (block bootstrap, 12-month blocks, 10,000 draws):
@@ -636,7 +793,7 @@ Caveats:
 
 1. **Uncorrelated, not a hedge.** In the trend book's 15 worst months Euribor averaged {sg(cd["trend book's 15 worst months"]['euribor_mean_bp'], 1)} bp against {sg(cd['all months']['euribor_mean_bp'], 1)} bp in an average month. It does not lose alongside the book, and it does not offset it.
 2. **2008–10 is outside the window.** The trend backtest starts in April 2011, so the years of Euribor's largest early profit, when trend strategies in general also did well, cannot be compared.
-3. **The combined Sharpe leans on the Euribor Sharpe**, which carries the main report's caveats: synthetic prices, an in-sample threshold, two good ECB cycles. The correlation finding is sturdier than the Sharpe finding, because it does not depend on the level of Euribor returns.
+3. **The combined Sharpe leans on the Euribor Sharpe**, which carries the main report's caveats: synthetic prices, a score chosen after the review, two good ECB cycles. The correlation finding is sturdier than the Sharpe finding, because it does not depend on the level of Euribor returns.
 4. **Daily and weekly figures are biased toward zero** by the synthetic's daily noise and by the gap between European and US closes. The monthly figure is the one to use.
 5. **The annual correlation with the currency sleeve, {sg(BYF.loc['Currency sleeve'].iloc[4])}, is 16 points and one cell of 20.** It reflects three years (2012, 2022, 2024) when Euribor earned and the currency sleeve lost; treat it as an observation, not a property.
 6. **One trend run.** The comparison uses a single backtest configuration, which held 5 markets on average and US rates on 9% to 21% of days. A trend book with a larger rates allocation, or one that adds European short-rate futures, would overlap more.

@@ -1,64 +1,72 @@
 core features: 37 | first month with all core features: 2001-12-31
-                                              sharpe ann_ret_bp ann_vol_bp    maxdd_bp    cagr_vt   maxdd_vt        hit months    t_stat  exposure                         note
-BM long-only 2nd contract                   0.266098  18.364265   69.01305 -470.187999   2.178874 -51.598463  55.803571    224  1.156257       1.0                    benchmark
-BM trend 3M (sign of 3M price change)       0.126757   8.746659  69.003485 -353.619562   0.762467 -42.120678  53.571429    224  0.550786       1.0                    benchmark
-BM trend 12M                                0.500532  34.541465  69.009553  -242.70491    4.61234  -31.71106  54.017857    224  2.174921       1.0                    benchmark
-BM follow-the-ECB (-sign of DFR 3M change)  0.847581  58.404917  68.907736 -162.285408   8.306254 -23.298323  59.821429    224  3.682929       1.0                    benchmark
-Prior composite, sign (R+M+I+S)             0.793181  54.637132  68.883549 -140.000467   7.707676 -19.209854  60.714286    224  3.446548       1.0                   no fitting
-Prior composite, scaled (clip +/-2)         1.135794  43.209088  38.043061  -81.853157  11.462988 -21.277738  56.696429    224  4.935278  0.276758                   no fitting
-Prior composite, user factors only (R+M+S)   0.71561  49.312736  68.910032 -187.690563   6.876034 -26.022993  55.357143    224  3.109486       1.0     no fitting; no inflation
-Prior group R only                          0.622448  42.885907  68.898726 -221.872308   5.884708 -29.605108  54.464286    224  2.704677       1.0                   no fitting
-Prior group M only                          0.243821  16.819607   68.98351 -540.592514   1.951717 -56.453818  54.910714    224  1.059455       1.0                   no fitting
-Prior group I only                           0.62647  43.174703  68.917393 -198.425935   5.938127 -25.923559  56.696429    224  2.722153       1.0                   no fitting
-Prior group S only                          0.241513  16.667642  69.013387 -402.231071    1.92749 -45.670465  51.339286    224  1.049428       1.0                   no fitting
-Prior composite drop R                      0.572531  39.478331   68.95406 -299.215629   5.357855 -36.548806  57.589286    224  2.487774       1.0                     ablation
-Prior composite drop M                      0.814543  56.116051   68.89264 -181.258688   7.937909 -25.321237  60.267857    224  3.539372       1.0                     ablation
-Prior composite drop I                       0.71561  49.312736  68.910032 -187.690563   6.876034 -26.022993  55.357143    224  3.109486       1.0                     ablation
-Prior composite drop S                      0.758304  52.270196  68.930417 -222.839342   7.332769 -28.499017  59.821429    224  3.294998       1.0                     ablation
-Prior composite, rolling 60M z-scores       0.602902  41.576813    68.9612 -200.820053   5.678139 -26.308658  52.678571    224  2.619741       1.0               z-score window
-Prior composite, FRONT contract             0.568101   28.66114  50.450791 -186.275542    5.27611 -33.842438  55.803571    224  2.468524       1.0              contract choice
-Prior composite, 3RD contract                0.52749  40.253297  76.311036 -178.243981    4.88844 -21.687921  53.571429    224   2.29206       1.0              contract choice
-Prior composite, 3M smoothed signal         0.773585  51.213995  66.203433 -182.386218   7.496054 -24.751796  55.803571    224  3.361399  0.825137               holding period
-Prior composite, cost 1bp/side              0.708874  48.917081  69.006727 -141.000467   6.803709 -19.402699      56.25    224  3.080215       1.0             cost sensitivity
-Prior composite, cost 2bp/side              0.539282   37.47698  69.494223 -210.171287   5.008155 -27.043744  49.553571    224    2.3433       1.0             cost sensitivity
-Ridge all factors (a=10), sign              0.575495  39.696477  68.977963 -194.097971    5.40173 -25.183754  53.811659    223  2.500654   0.99979  walk-forward, monthly refit
-Ridge all factors (a=10), scaled            0.994696  76.292376  76.699166 -229.923737   9.916703 -26.519594  51.121076    223  4.322176  0.674491                             
-Ridge all factors (a=1), sign               0.493637  34.074867  69.028217 -213.728202   4.530178 -27.595792  52.017937    223  2.144961   0.99979            alpha sensitivity
-Ridge all factors (a=100), sign              0.69031  47.591701  68.942529 -217.050671   6.618577 -27.472414  55.605381    223  2.999549   0.99979            alpha sensitivity
-Ridge all factors (a=1000), sign            0.365534  25.216984  68.986762  -242.70491   3.209879 -31.720321  56.950673    223  1.588325   0.99979            alpha sensitivity
-Lasso all factors (a=0.01), sign            0.419169  28.899768  68.945386 -275.556745   3.766976 -33.869762   54.26009    223  1.821382   0.99979                             
-Logit direction (C=0.1), sign               0.665019  45.851841  68.948187 -187.591871   6.350111 -24.471536  57.399103    223  2.889654   0.99979                             
-Ridge user factors only (R+M+D+S)           0.484434  33.404636  68.955947 -215.164426   4.433953 -28.893654  52.914798    223  2.104975   0.99979                 no inflation
-Ridge group R only                          0.644596  44.387244  68.860595 -228.920127   6.119723 -28.585421  55.156951    223  2.800911   0.99979                 single group
-Ridge drop group R                          0.350304  24.166124  68.986069  -254.53842   3.054755 -31.889135  53.363229    223   1.52215   0.99979                     ablation
-Ridge group M only                          0.237371  16.375853  68.988456 -278.034618   1.898049 -34.142901  53.363229    223  1.031429   0.99979                 single group
-Ridge drop group M                          0.548031  37.797888  68.970391 -205.863226   5.110707 -26.370047  56.950673    223  2.381315   0.99979                     ablation
-Ridge group D only                          0.311415  21.480784  68.978014 -271.252147   2.653485 -33.910712  56.053812    223  1.353167   0.99979                 single group
-Ridge drop group D                          0.484902  33.445852  68.974501 -278.034618   4.451301 -33.757352   54.70852    223  2.107005   0.99979                     ablation
-Ridge group I only                         -0.007252  -0.500028   68.94707  -342.13806  -0.566206 -41.047075  51.569507    223 -0.031513   0.99979                 single group
-Ridge drop group I                          0.484434  33.404636  68.955947 -215.164426   4.433953 -28.893654  52.914798    223  2.104975   0.99979                     ablation
-Ridge group S only                          0.406119  27.996636  68.937037  -291.92092   3.629447 -36.262226  58.295964    223  1.764677   0.99979                 single group
-Ridge drop group S                          0.577198  39.783899  68.925951 -278.034618   5.419617  -33.77698  55.156951    223  2.508052   0.99979                     ablation
-Ridge all + US rates + TIC holdings         0.197238  10.495425  53.212097 -262.863648   1.483035  -40.31599  51.724138    203  0.857041  0.910467      extension (starts 2009)
-Ridge all, min_train 120 (OOS from 2012)     0.14807   7.388197  49.896559 -180.048939   0.985482 -32.050842  49.714286    175  0.643398  0.783943              later OOS start
-PLACEBO ridge on shuffled target           -0.213206 -14.707938  68.984775 -447.242951  -2.603189  -50.89238  48.430493    223 -0.926425   0.99979                 should be ~0
-Combo: prior sign + ridge sign (avg)        0.934926   48.95079  52.357931 -105.952719   9.253681 -18.771182  61.904762    147  4.062461  0.661412                             
-Combo: prior sign + follow-the-ECB (avg)    1.299515  58.533635  45.042693 -105.952719  13.307035 -21.554233  73.214286    112  5.646679  0.497268                             
-Ridge all, FRONT contract                   0.402468  20.319938  50.488316 -122.095995   3.616013  -22.54157  53.811659    223  1.748813   0.99979              contract choice
+                                                        sharpe ann_ret_bp ann_vol_bp    maxdd_bp    cagr_vt   maxdd_vt        hit months    t_stat  exposure                         note
+BM long-only 2nd contract                             0.266098  18.364265   69.01305 -470.187999   2.178874 -51.598463  55.803571    224  1.156257       1.0                    benchmark
+BM trend 3M (sign of 3M price change)                 0.126757   8.746659  69.003485 -353.619562   0.762467 -42.120678  53.571429    224  0.550786       1.0                    benchmark
+BM trend 12M                                          0.500532  34.541465  69.009553  -242.70491    4.61234  -31.71106  54.017857    224  2.174921       1.0                    benchmark
+BM follow-the-ECB (-sign of MRO+DFR 3M change)        1.066898  73.460183  68.853957 -136.631169   10.70929 -18.514989  60.267857    224  4.635911       1.0                    benchmark
+BM follow-the-ECB, DFR only (v1 anchor)               0.847581  58.404917  68.907736 -162.285408   8.306254 -23.298323  59.821429    224  3.682929       1.0                    v1 anchor
+Prior composite, sign (R+M+I+S)                       0.793181  54.637132  68.883549 -140.000467   7.707676 -19.209854  60.714286    224  3.446548       1.0                   no fitting
+Prior composite, scaled (clip +/-2)                   1.135794  43.209088  38.043061  -81.853157  11.462988 -21.277738  56.696429    224  4.935278  0.276758                   no fitting
+Prior composite, user factors only (R+M+S)             0.71561  49.312736  68.910032 -187.690563   6.876034 -26.022993  55.357143    224  3.109486       1.0     no fitting; no inflation
+Prior group R only                                    0.622448  42.885907  68.898726 -221.872308   5.884708 -29.605108  54.464286    224  2.704677       1.0                   no fitting
+Prior group M only                                    0.243821  16.819607   68.98351 -540.592514   1.951717 -56.453818  54.910714    224  1.059455       1.0                   no fitting
+Prior group I only                                     0.62647  43.174703  68.917393 -198.425935   5.938127 -25.923559  56.696429    224  2.722153       1.0                   no fitting
+Prior group S only                                    0.241513  16.667642  69.013387 -402.231071    1.92749 -45.670465  51.339286    224  1.049428       1.0                   no fitting
+Prior composite drop R                                0.572531  39.478331   68.95406 -299.215629   5.357855 -36.548806  57.589286    224  2.487774       1.0                     ablation
+Prior composite drop M                                0.814543  56.116051   68.89264 -181.258688   7.937909 -25.321237  60.267857    224  3.539372       1.0                     ablation
+Prior composite drop I                                 0.71561  49.312736  68.910032 -187.690563   6.876034 -26.022993  55.357143    224  3.109486       1.0                     ablation
+Prior composite drop S                                0.758304  52.270196  68.930417 -222.839342   7.332769 -28.499017  59.821429    224  3.294998       1.0                     ablation
+Prior composite, rolling 60M z-scores                 0.602902  41.576813    68.9612 -200.820053   5.678139 -26.308658  52.678571    224  2.619741       1.0               z-score window
+Prior composite, FRONT contract                       0.568101   28.66114  50.450791 -186.275542    5.27611 -33.842438  55.803571    224  2.468524       1.0              contract choice
+Prior composite, 3RD contract                          0.52749  40.253297  76.311036 -178.243981    4.88844 -21.687921  53.571429    224   2.29206       1.0              contract choice
+Prior composite, 3M smoothed signal                   0.773585  51.213995  66.203433 -182.386218   7.496054 -24.751796  55.803571    224  3.361399  0.825137               holding period
+Prior composite, cost 1bp/side                        0.708874  48.917081  69.006727 -141.000467   6.803709 -19.402699      56.25    224  3.080215       1.0             cost sensitivity
+Prior composite, cost 2bp/side                        0.539282   37.47698  69.494223 -210.171287   5.008155 -27.043744  49.553571    224    2.3433       1.0             cost sensitivity
+Five-input score alone, sign                          0.939077  64.670284  68.865775 -132.828784   9.290226 -19.214761  58.482143    224  4.080499       1.0                   no fitting
+Spec v1: DFR anchor + 23-series R+I+S override        1.089087  74.964221  68.832142 -136.631169  10.954758 -18.520442  63.392857    224  4.732326       1.0                      v1 spec
+Spec v1 score on the both-rates anchor                1.089087  74.964221  68.832142 -136.631169  10.954758 -18.520442  63.392857    224  4.732326       1.0              anchor fix only
+Frozen spec v2: both-rates anchor + 5-input override  1.060709  73.014227  68.835277 -136.631169  10.640471 -18.519658  61.160714    224  4.609018       1.0                  frozen spec
+Ridge all factors (a=10), sign                        0.575495  39.696477  68.977963 -194.097971    5.40173 -25.183754  53.811659    223  2.500654   0.99979  walk-forward, monthly refit
+Ridge all factors (a=10), scaled                      0.994696  76.292376  76.699166 -229.923737   9.916703 -26.519594  51.121076    223  4.322176  0.674491                             
+Ridge all factors (a=1), sign                         0.493637  34.074867  69.028217 -213.728202   4.530178 -27.595792  52.017937    223  2.144961   0.99979            alpha sensitivity
+Ridge all factors (a=100), sign                        0.69031  47.591701  68.942529 -217.050671   6.618577 -27.472414  55.605381    223  2.999549   0.99979            alpha sensitivity
+Ridge all factors (a=1000), sign                      0.365534  25.216984  68.986762  -242.70491   3.209879 -31.720321  56.950673    223  1.588325   0.99979            alpha sensitivity
+Lasso all factors (a=0.01), sign                      0.419169  28.899768  68.945386 -275.556745   3.766976 -33.869762   54.26009    223  1.821382   0.99979                             
+Logit direction (C=0.1), sign                         0.665019  45.851841  68.948187 -187.591871   6.350111 -24.471536  57.399103    223  2.889654   0.99979                             
+Ridge user factors only (R+M+D+S)                     0.484434  33.404636  68.955947 -215.164426   4.433953 -28.893654  52.914798    223  2.104975   0.99979                 no inflation
+Ridge group R only                                    0.644596  44.387244  68.860595 -228.920127   6.119723 -28.585421  55.156951    223  2.800911   0.99979                 single group
+Ridge drop group R                                    0.350304  24.166124  68.986069  -254.53842   3.054755 -31.889135  53.363229    223   1.52215   0.99979                     ablation
+Ridge group M only                                    0.237371  16.375853  68.988456 -278.034618   1.898049 -34.142901  53.363229    223  1.031429   0.99979                 single group
+Ridge drop group M                                    0.548031  37.797888  68.970391 -205.863226   5.110707 -26.370047  56.950673    223  2.381315   0.99979                     ablation
+Ridge group D only                                    0.311415  21.480784  68.978014 -271.252147   2.653485 -33.910712  56.053812    223  1.353167   0.99979                 single group
+Ridge drop group D                                    0.484902  33.445852  68.974501 -278.034618   4.451301 -33.757352   54.70852    223  2.107005   0.99979                     ablation
+Ridge group I only                                   -0.007252  -0.500028   68.94707  -342.13806  -0.566206 -41.047075  51.569507    223 -0.031513   0.99979                 single group
+Ridge drop group I                                    0.484434  33.404636  68.955947 -215.164426   4.433953 -28.893654  52.914798    223  2.104975   0.99979                     ablation
+Ridge group S only                                    0.406119  27.996636  68.937037  -291.92092   3.629447 -36.262226  58.295964    223  1.764677   0.99979                 single group
+Ridge drop group S                                    0.577198  39.783899  68.925951 -278.034618   5.419617  -33.77698  55.156951    223  2.508052   0.99979                     ablation
+Ridge all + US rates + TIC holdings                   0.197238  10.495425  53.212097 -262.863648   1.483035  -40.31599  51.724138    203  0.857041  0.910467      extension (starts 2009)
+Ridge all, min_train 120 (OOS from 2012)               0.14807   7.388197  49.896559 -180.048939   0.985482 -32.050842  49.714286    175  0.643398  0.783943              later OOS start
+PLACEBO ridge on shuffled target                     -0.213206 -14.707938  68.984775 -447.242951  -2.603189  -50.89238  48.430493    223 -0.926425   0.99979                 should be ~0
+Combo: prior sign + ridge sign (avg)                  0.934926   48.95079  52.357931 -105.952719   9.253681 -18.771182  61.904762    147  4.062461  0.661412                             
+Combo: prior sign + follow-the-ECB (avg)              1.377831  66.061268   47.94585 -105.952719  14.200571 -20.356861  73.451327    113   5.98698  0.501471                             
+Ridge all, FRONT contract                             0.402468  20.319938  50.488316 -122.095995   3.616013  -22.54157  53.811659    223  1.748813   0.99979              contract choice
 
 Sub-period Sharpe:
- period                                      2002-07 (pre-OOS)  2008-12 crisis  2013-19 ZLB/QE  2020-21 COVID  2022-26 hikes+cuts
-variant                                                                                                                         
-BM long-only 2nd contract                                0.28            1.75            0.16          -0.22               -1.00
-BM trend 12M                                             0.74            0.84           -0.45          -0.81                0.69
-BM follow-the-ECB (-sign of DFR 3M change)               0.81            1.18            0.16          -0.22                1.03
-Prior composite, sign (R+M+I+S)                         -0.10            1.46           -0.21           0.58                0.60
-Prior composite, scaled (clip +/-2)                      0.37            2.22           -0.23           0.26                0.63
-Prior composite, user factors only (R+M+S)               0.16            1.75           -0.83           0.24                0.69
-Ridge all factors (a=10), sign                            NaN            1.37            0.01          -1.29                0.40
-Ridge all factors (a=100), sign                           NaN            1.67           -0.22          -0.63                0.43
-Logit direction (C=0.1), sign                             NaN            1.56           -0.30          -0.84                0.53
-Combo: prior sign + follow-the-ECB (avg)                 0.50            2.64            0.09           0.39                1.06
+ period                                                2002-07 (pre-OOS)  2008-12 crisis  2013-19 ZLB/QE  2020-21 COVID  2022-26 hikes+cuts
+variant                                                                                                                                   
+BM long-only 2nd contract                                          0.28            1.75            0.16          -0.22               -1.00
+BM trend 12M                                                       0.74            0.84           -0.45          -0.81                0.69
+BM follow-the-ECB, DFR only (v1 anchor)                            0.81            1.18            0.16          -0.22                1.03
+BM follow-the-ECB (-sign of MRO+DFR 3M change)                     0.81            1.78            0.16          -0.22                1.03
+Spec v1: DFR anchor + 23-series R+I+S override                     0.73            1.81            0.21           0.08                1.01
+Frozen spec v2: both-rates anchor + 5-input override               0.81            1.78            0.16          -0.21                1.01
+Prior composite, sign (R+M+I+S)                                   -0.10            1.46           -0.21           0.58                0.60
+Prior composite, scaled (clip +/-2)                                0.37            2.22           -0.23           0.26                0.63
+Prior composite, user factors only (R+M+S)                         0.16            1.75           -0.83           0.24                0.69
+Ridge all factors (a=10), sign                                      NaN            1.37            0.01          -1.29                0.40
+Ridge all factors (a=100), sign                                     NaN            1.67           -0.22          -0.63                0.43
+Logit direction (C=0.1), sign                                       NaN            1.56           -0.30          -0.84                0.53
+Combo: prior sign + follow-the-ECB (avg)                           0.50            2.69            0.09           0.39                1.06
 
 Mean ridge coefficient:
  r_fut_mom3              -0.0762

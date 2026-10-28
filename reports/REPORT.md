@@ -1,6 +1,6 @@
 # Euribor 3M futures: macro-factor direction strategy
 
-Backtest report, 24 September 2026. Instrument: synthetic 3-month Euribor future, second quarterly contract (3 to 6 months to expiry). Monthly rebalancing at month-end, positions applied from the next trading day, half a basis point (one tick) per side plus quarterly roll costs. Out-of-sample window for every variant: January 2008 to August 2026 (224 months). Data and construction are in the appendix.
+Backtest report, 24 September 2026; the benchmark rule and the anchored specifications were updated on 28 October 2026 after an external review (the follow-the-ECB rule now reads both policy rates). The frozen specification and its account test are in `BACKTEST_50K.md`. Instrument: synthetic 3-month Euribor future, second quarterly contract (3 to 6 months to expiry). Monthly rebalancing at month-end, positions applied from the next trading day, half a basis point (one tick) per side plus quarterly roll costs. Out-of-sample window for every variant: January 2008 to August 2026 (224 months). Data and construction are in the appendix.
 
 ## 1. Hypothesis
 
@@ -8,20 +8,21 @@ The direction of the 3M Euribor future over the next month is predictable from t
 
 ## 2. Benchmark
 
-- **Primary benchmark: follow-the-ECB.** Hold the future long if the deposit rate was cut in the last three months, short if it was raised, keep the previous position otherwise. This is the simplest thing a rates trader would do and it turns out to be hard to beat.
+- **Primary benchmark: follow-the-ECB.** Hold the future long if the policy rates (main refinancing rate plus deposit rate) were cut in the last three months, short if they were raised, keep the previous position otherwise. This is the simplest thing a rates trader would do and it turns out to be hard to beat. The September version read the deposit rate alone, which missed the October 2008 cut (the corridor change of 9 October put the deposit rate back to its July level); it is kept as a row.
 - **Secondary benchmarks:** long-only (roll the second contract), 3-month and 12-month price trend.
 - **Universe and window:** one instrument, daily P&L in basis points of price, Jan 2008 to Aug 2026. Fitted models train on data from Dec 2001 onward with an expanding window (minimum 72 months), refit every month, and never see the month they predict. The 2002 to 2007 period is reported separately as a quasi-in-sample check for the unfitted rules.
 
 ## 3. Variants
 
-45 variants were run in total (all rows are in `results/results_main.csv`). They fall into four families:
+50 variants were run in total (all rows are in `results/results_main.csv`). They fall into four families:
 
 | Family | What varies | Count |
 |---|---|---|
-| Benchmarks | long-only, 3M trend, 12M trend, follow-the-ECB | 4 |
+| Benchmarks | long-only, 3M trend, 12M trend, follow-the-ECB on both policy rates and on the deposit rate alone | 5 |
 | Prior-sign composite (no fitting) | z-score each feature, multiply by its theory sign, average within and across groups; ±1 vs scaled sizing; with and without inflation; single group and drop-one-group; expanding vs rolling 60M z-scores; front, 2nd, 3rd contract; 3M smoothed signal; 1 bp and 2 bp costs | 17 |
-| Fitted, walk-forward | ridge (α = 1, 10, 100, 1000), lasso, logistic; ±1 vs scaled; user factors only; single group and drop-one-group; plus US rates and Treasury holdings; 10-year minimum training; front contract; shuffled-target placebo | 20 |
+| Fitted, walk-forward | ridge (α = 1, 10, 100, 1000), lasso, logistic; ±1 vs scaled; user factors only; single group and drop-one-group; plus US rates and Treasury holdings; 10-year minimum training; front contract; shuffled-target placebo | 22 |
 | Combinations | composite averaged with ridge; composite averaged with follow-the-ECB | 2 |
+| Anchored specifications (added 28 October) | v1 (deposit-rate anchor, 23-series override), the v1 score on the both-rates anchor, the frozen v2 (both-rates anchor, five-input override), the five-input score alone | 4 |
 
 Debt-holdings features have no theory-pinned sign, so they enter only the fitted models. Full feature list with lags and signs: appendix B.
 
@@ -29,23 +30,28 @@ Debt-holdings features have no theory-pinned sign, so they enter only the fitted
 
 | Variant | Sharpe | Ann. P&L (bp) | Max DD (bp) | CAGR @10% vol | Max DD @10% vol | Monthly hit | Δ Sharpe vs follow-the-ECB |
 |---|---|---|---|---|---|---|---|
-| Benchmark: long-only, 2nd contract | +0.27 | +18 | -470 | +2.2% | -52% | 56% | -0.58 |
-| Benchmark: 12M trend | +0.50 | +35 | -243 | +4.6% | -32% | 54% | -0.35 |
-| Benchmark: 3M trend | +0.13 | +9 | -354 | +0.8% | -42% | 54% | -0.72 |
-| Benchmark: follow-the-ECB (policy momentum) | +0.85 | +58 | -162 | +8.3% | -23% | 60% | +0.00 |
-| Macro composite, prior signs, ±1 | +0.79 | +55 | -140 | +7.7% | -19% | 61% | -0.05 |
-| Macro composite, prior signs, scaled | +1.14 | +43 | -82 | +11.5% | -21% | 57% | +0.29 |
-| Macro composite, prior signs, no inflation | +0.72 | +49 | -188 | +6.9% | -26% | 55% | -0.13 |
-| Ridge, all 37 features, α=10, ±1 | +0.58 | +40 | -194 | +5.4% | -25% | 54% | -0.27 |
-| Ridge, α=100, ±1 | +0.69 | +48 | -217 | +6.6% | -27% | 56% | -0.16 |
-| Ridge, α=10, scaled | +0.99 | +76 | -230 | +9.9% | -27% | 51% | +0.15 |
-| Logistic direction, ±1 | +0.67 | +46 | -188 | +6.4% | -24% | 57% | -0.18 |
-| Lasso, ±1 | +0.42 | +29 | -276 | +3.8% | -34% | 54% | -0.43 |
-| Ridge, user factors only (no inflation) | +0.48 | +33 | -215 | +4.4% | -29% | 53% | -0.36 |
-| Ridge + US rates + Treasury holdings (from 2009) | +0.20 | +10 | -263 | +1.5% | -40% | 52% | -0.65 |
-| Combo: composite + ridge (post hoc) | +0.93 | +49 | -106 | +9.3% | -19% | 62% | +0.09 |
-| Combo: composite + follow-the-ECB (post hoc) | +1.30 | +59 | -106 | +13.3% | -22% | 73% | +0.45 |
-| Placebo: ridge on shuffled target | -0.21 | -15 | -447 | -2.6% | -51% | 48% | -1.06 |
+| Benchmark: long-only, 2nd contract | +0.27 | +18 | -470 | +2.2% | -52% | 56% | -0.80 |
+| Benchmark: 12M trend | +0.50 | +35 | -243 | +4.6% | -32% | 54% | -0.57 |
+| Benchmark: 3M trend | +0.13 | +9 | -354 | +0.8% | -42% | 54% | -0.94 |
+| Benchmark: follow-the-ECB (policy momentum, both rates) | +1.07 | +73 | -137 | +10.7% | -19% | 60% | +0.00 |
+| Follow-the-ECB on the deposit rate alone (v1 anchor) | +0.85 | +58 | -162 | +8.3% | -23% | 60% | -0.22 |
+| v1 spec: deposit-rate anchor + 23-series override | +1.09 | +75 | -137 | +11.0% | -19% | 63% | +0.02 |
+| v1 score on the both-rates anchor | +1.09 | +75 | -137 | +11.0% | -19% | 63% | +0.02 |
+| Frozen spec v2: both-rates anchor + five-input override | +1.06 | +73 | -137 | +10.6% | -19% | 61% | -0.01 |
+| Five-input score alone, ±1 | +0.94 | +65 | -133 | +9.3% | -19% | 58% | -0.13 |
+| Macro composite, prior signs, ±1 | +0.79 | +55 | -140 | +7.7% | -19% | 61% | -0.27 |
+| Macro composite, prior signs, scaled | +1.14 | +43 | -82 | +11.5% | -21% | 57% | +0.07 |
+| Macro composite, prior signs, no inflation | +0.72 | +49 | -188 | +6.9% | -26% | 55% | -0.35 |
+| Ridge, all 37 features, α=10, ±1 | +0.58 | +40 | -194 | +5.4% | -25% | 54% | -0.49 |
+| Ridge, α=100, ±1 | +0.69 | +48 | -217 | +6.6% | -27% | 56% | -0.38 |
+| Ridge, α=10, scaled | +0.99 | +76 | -230 | +9.9% | -27% | 51% | -0.07 |
+| Logistic direction, ±1 | +0.67 | +46 | -188 | +6.4% | -24% | 57% | -0.40 |
+| Lasso, ±1 | +0.42 | +29 | -276 | +3.8% | -34% | 54% | -0.65 |
+| Ridge, user factors only (no inflation) | +0.48 | +33 | -215 | +4.4% | -29% | 53% | -0.58 |
+| Ridge + US rates + Treasury holdings (from 2009) | +0.20 | +10 | -263 | +1.5% | -40% | 52% | -0.87 |
+| Combo: composite + ridge (post hoc) | +0.93 | +49 | -106 | +9.3% | -19% | 62% | -0.13 |
+| Combo: composite + follow-the-ECB (post hoc) | +1.38 | +66 | -106 | +14.2% | -20% | 73% | +0.31 |
+| Placebo: ridge on shuffled target | -0.21 | -15 | -447 | -2.6% | -51% | 48% | -1.28 |
 
 CAGR and drawdown at 10% volatility are ex-post scalings of the same P&L to a common risk level, so they are comparable across rows but are not what one unlevered contract earns. The two combination rows were formed after seeing the single-model results and should be read as candidates, not findings.
 
@@ -73,12 +79,15 @@ Reference: composite with all groups +0.79, ridge with all groups +0.58.
 |---|---|---|---|---|---|
 | Long-only | +0.28 | +1.75 | +0.16 | -0.22 | -1.00 |
 | 12M trend | +0.74 | +0.84 | -0.45 | -0.81 | +0.69 |
-| Follow-the-ECB | +0.81 | +1.18 | +0.16 | -0.22 | +1.03 |
+| Follow-the-ECB | +0.81 | +1.78 | +0.16 | -0.22 | +1.03 |
+| Follow-the-ECB, deposit rate only | +0.81 | +1.18 | +0.16 | -0.22 | +1.03 |
+| v1 spec | +0.73 | +1.81 | +0.21 | +0.08 | +1.01 |
+| Frozen spec v2 | +0.81 | +1.78 | +0.16 | -0.21 | +1.01 |
 | Composite, prior signs | -0.10 | +1.46 | -0.21 | +0.58 | +0.60 |
 | Composite, scaled | +0.37 | +2.22 | -0.23 | +0.26 | +0.63 |
 | Ridge α=10 | n/a | +1.37 | +0.01 | -1.29 | +0.40 |
 | Logit | n/a | +1.56 | -0.30 | -0.84 | +0.53 |
-| Combo composite + ECB (post hoc) | +0.50 | +2.64 | +0.09 | +0.39 | +1.06 |
+| Combo composite + ECB (post hoc) | +0.50 | +2.69 | +0.09 | +0.39 | +1.06 |
 
 **Parameter and implementation sensitivity (Sharpe, 2008 to 2026).**
 
@@ -100,18 +109,18 @@ Reference: composite with all groups +0.79, ridge with all groups +0.58.
 
 **Placebo.** Ridge trained on a shuffled target scores -0.21, so the pipeline has no structural leak or drift bias. (An earlier build that bootstrapped the forward from the Euribor deposit curve gave the placebo a Sharpe near 1 and long-only a Sharpe above 6 in 2013 to 2019, which is how the tenor-basis flaw in the synthetic price was found; see appendix A.)
 
-**Overlap with the benchmark.** The composite and follow-the-ECB agree on direction in only 50% of months and their monthly P&L correlation is 0.21, so the composite is not a relabelled policy-momentum rule. Follow-the-ECB is long 81% of the time; the composite is long 49% of the time and changes sign about twice a year, the ridge about three times a year.
+**Overlap with the benchmark.** The composite and follow-the-ECB agree on direction in only 50% of months and their monthly P&L correlation is 0.55, so the composite is not a relabelled policy-momentum rule. Follow-the-ECB is long 81% of the time; the composite is long 49% of the time and changes sign 1.8 times a year, the ridge 3.1 times a year.
 
 **Fitted-model stability.** Ridge coefficients (mean over refits) are largest on 3M changes in the 12M Euribor and in the deposit rate (negative, i.e. rate momentum continues), the Eurosystem balance-sheet 3M change (positive, i.e. QE lowers expected rates), the curve slope (positive) and the 3M price change (negative, i.e. short-horizon mean reversion, opposite to the composite's prior). Rates and inflation coefficients keep their sign in about 90% of monthly refits; the least stable are money-supply terms (M3 six-month growth and balance-sheet YoY keep their sign in fewer than half of the refits) and the CISS level (two thirds).
 
 ## 6. Verdict
 
-**Context-dependent.** The macro composite beats long-only and both trend benchmarks and matches the follow-the-ECB rule (Sharpe +0.79 vs +0.85, t ≈ 3.4), but almost all of the value sits in the rates/policy block plus inflation; money supply and political sentiment add little on their own and nothing incremental, and debt holdings add about +0.1 Sharpe inside the fitted model only. A tradeable version would be the composite (or the composite averaged with policy momentum) run only when the ECB is in an active cycle, with the expectation of flat results at the lower bound.
+**Context-dependent.** The macro composite beats long-only and both trend benchmarks and matches the follow-the-ECB rule (Sharpe +0.79 vs +1.07, t ≈ 3.4), but almost all of the value sits in the rates/policy block plus inflation; money supply and political sentiment add little on their own and nothing incremental, and debt holdings add about +0.1 Sharpe inside the fitted model only. A tradeable version would be the composite (or the composite averaged with policy momentum) run only when the ECB is in an active cycle, with the expectation of flat results at the lower bound.
 
 Caveats, in order of importance:
 
 1. **Prices are synthetic.** No free source of ICE Euribor futures exists, so the contract is priced from daily 3M Euribor plus the AAA government forward premium. It settles exactly at 100 minus 3M Euribor, but intra-life marks carry government-curve noise and ignore the Euribor-OIS basis and convexity. Validate on real settlement prices before trading.
-2. **Multiple testing.** 45 variants; the best fitted Sharpe (α = 100, +0.69) and the post hoc combination (+1.30) should be discounted. The composite's signs were fixed from theory before running, which limits but does not remove this.
+2. **Multiple testing.** 50 variants; the best fitted Sharpe (α = 100, +0.69) and the post hoc combination (+1.38) should be discounted. The composite's signs were fixed from theory before running, which limits but does not remove this.
 3. **The composite failed in 2002 to 2007** (Sharpe -0.10) while follow-the-ECB worked (+0.81). One full hiking cycle out of two in the sample was missed.
 4. **Feature effective sample is small.** Eighteen years contain three ECB cycles; single-group results move by ±0.3 Sharpe when the window shifts.
 5. **Data gaps.** Treasury holdings for Germany, Italy and the Netherlands are carried forward from Nov 2025; BIS bank claims are quarterly with a five-month publication lag; monthly macro is used with a one-month lag (two for unemployment and Treasury data), and 2026 inflation comes from Eurostat's new ECOICOP-v2 series spliced onto the ECB history.
@@ -129,6 +138,7 @@ Caveats, in order of importance:
 | Group | Feature | Lag | Prior sign on price |
 |---|---|---|---|
 | Rates | DFR change 3M, 6M | daily | − |
+| Rates (anchor only) | MRO change 3M, added to the DFR change in the follow-the-ECB rule; not in the composite or the fitted models | daily | − |
 | Rates | Euribor 12M − 3M slope; its 3M change | daily | +, − |
 | Rates | 12M Euribor 3M change | daily | − |
 | Rates | 3M Euribor − DFR (money-market stress) | daily | + |
@@ -145,4 +155,4 @@ Caveats, in order of importance:
 
 ## Appendix C. Files
 
-`data/raw/` holds the downloaded sources and `data/processed/` the synthetic futures and `features_monthly.csv`; `results/results_main.csv` (all 45 variants), `subperiod_sharpe.csv`, `daily_pnl_curves.csv`, `monthly_positions.csv`, `ridge_coefs.csv`. Pipeline: `python -m euribor fetch`, `futures`, `features`, `backtest`, `montecarlo`, `charts`, `reports`, in that order (or `make all`); the code is in the `euribor/` package.
+`data/raw/` holds the downloaded sources and `data/processed/` the synthetic futures and `features_monthly.csv`; `results/results_main.csv` (all 50 variants), `subperiod_sharpe.csv`, `daily_pnl_curves.csv`, `monthly_positions.csv`, `ridge_coefs.csv`. Pipeline: `python -m euribor fetch`, `futures`, `features`, `backtest`, `montecarlo`, `charts`, `reports`, in that order (or `make all`); the code is in the `euribor/` package.

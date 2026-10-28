@@ -4,18 +4,24 @@ A systematic strategy on the three-month Euribor future: **ECB policy momentum**
 **macro risk-factor override**. Built from free public data, including a synthetic futures price series,
 because no free history of ICE or Eurex Euribor futures exists. Research period September to October 2026.
 
-**Status: research complete, specification frozen, not traded.** Prices are synthetic before 2019 and the
-override's edge rests on two episodes. `reports/STATUS.md` has the full state of the evidence and the next steps.
+**Status: specification v2 frozen on 28 October 2026 after an external review, not traded.** Prices are synthetic
+before 2019, and the override adds nothing measurable over ECB rate momentum: read the strategy as that rule plus a
+sizing rule. `reports/STATUS.md` has the full state of the evidence and the next steps.
 
 ## The strategy
 
 Position for next month on the second quarterly contract, decided at each month-end:
 
-1. **Anchor, ECB rate momentum.** Long if the deposit facility rate was cut in the last three months, short if it
-   was raised, otherwise keep the previous position.
-2. **Override, risk-factor score.** Three groups of monthly macro series (rates and policy, inflation, sentiment
-   and stress), each turned into an expanding z-score with its sign fixed from theory, averaged into one number.
-   When the score is above +0.5 the position is long, below −0.5 short, whatever the ECB did last.
+1. **Anchor, ECB rate momentum.** Long if the policy rates (main refinancing rate plus deposit facility rate) were
+   cut in the last three months, short if they were raised, otherwise keep the previous position. v1 read the
+   deposit rate alone and missed the October 2008 cut, when a corridor change put the deposit rate back to its
+   July level.
+2. **Override, risk-factor score.** Five monthly inputs (deposit-rate 3M change, HICP and core HICP year on year,
+   unemployment 6M change, CISS stress level), each an expanding z-score with its sign fixed from theory, averaged
+   with equal weights. When the score is above +0.5 the position is long, below −0.5 short. v1 used 23 series in
+   three groups.
+3. **Sizing.** Contracts = 10% of equity at a fixed volatility, the 1999–2007 average of 49 bp a year (about one
+   contract per €12,300). v1 used a 10% volatility target, which cut the position when the signal paid.
 
 Trade the second contract, roll on the front expiry. No further tuning on this sample.
 
@@ -27,15 +33,20 @@ One contract, January 2008 to August 2026 (224 months), after 0.5 bp per side an
 |---|---|---|---|
 | Long-only 2nd contract (benchmark) | +0.27 | +18 bp | −470 bp |
 | 12-month price trend (benchmark) | +0.50 | +35 bp | −243 bp |
-| ECB rate momentum alone | +0.85 | +58 bp | −162 bp |
-| Macro composite alone (R+I+S) | +0.81 | +56 bp | −181 bp |
-| **Frozen spec: anchor + override above 0.5** | **+1.09** in-sample, **+0.87** with a walk-forward threshold | +75 bp | −137 bp |
+| ECB rate momentum, deposit rate alone (v1 anchor) | +0.85 | +58 bp | −162 bp |
+| ECB rate momentum, both policy rates | +1.07 | +73 bp | −137 bp |
+| Five-input score alone | +0.94 | +65 bp | −133 bp |
+| v1 spec: deposit-rate anchor + 23-series override | +1.09; +0.88 with a walk-forward threshold | +75 bp | −137 bp |
+| **Frozen spec v2: both-rates anchor + five-input override** | **+1.06**; +1.08 with a walk-forward threshold | +73 bp | −137 bp |
 | Placebo (ridge on a shuffled target) | −0.21 | | |
 
-As a €50,000 account at a 10% volatility target and 0.3 bp per side (`reports/BACKTEST_50K.md`): Sharpe +0.85,
-CAGR 9.0%, worst drawdown −20%, final equity €256k; one fixed contract instead of volatility targeting gives
-Sharpe +1.02. Block-bootstrap 90% interval for the Sharpe +0.3 to +1.2; no-skill nulls p ≤ 0.014. The result is
-regime dependent: strong when the ECB moves (2008–12, 2022–26), flat at the zero lower bound (2013–19).
+Adding the synthetic's measured pricing error to the whole history puts the v2 one-contract Sharpe at about 0.7 to
+1.1. As a €50,000 account with per-euro sizing, cash at EONIA/€STR and 0.3 bp per side (`reports/BACKTEST_50K.md`):
+Sharpe +1.00 over cash, CAGR 15.0%, realised volatility 14%, worst drawdown −22.6%, final equity €708k; one fixed
+contract gives +0.97, and v1 as reported gave +0.85 (9.0% CAGR, €256k). The override adds nothing in the account
+(ECB rate momentum alone: +1.01). Block-bootstrap 90% interval for the Sharpe +0.50 to +1.37; no-skill nulls
+p < 0.001. The result is regime dependent: strong when the ECB moves (2008–12, 2022–26), flat at the zero lower
+bound (2013–21).
 
 What did not work, and is kept in `research/` for the trial count: money supply, a credit-demand block (capex by
 industry, investment by asset, bank lending survey), Kalman-filtered features, fitted ridge, lasso and logit models.
@@ -49,13 +60,15 @@ euribor/            the implementation, one module per pipeline step
   futures.py        synthetic quarterly futures from Euribor plus a forward premium (govt or OIS curve)
   features.py       monthly feature matrix with publication lags, prior signs, next-month target
   signals.py        ECB rate momentum, prior-sign composite, override, walk-forward threshold
-  backtest.py       one-contract P&L engine, metrics, walk-forward models, the 45 variants
-  montecarlo.py     block bootstrap, no-skill nulls, deflated Sharpe, CPCV, nested walk-forward
+  backtest.py       one-contract P&L engine, metrics, walk-forward models, the 50 variants
+  montecarlo.py     block bootstrap, no-skill nulls, deflated Sharpe, CPCV, nested walk-forward,
+                    synthetic-price-error range
   account.py        EUR 50,000 account simulation and its Monte Carlo (full window and last five years)
   charts.py         figures 1 to 11;  plotting.py: shared style
   reports.py        REPORT.md and BACKTEST_50K*.md from results/;  render.py: HTML and PDF
 research/           one-off studies the reports cite: threshold choice, divergence map, instrument
-                    comparison, trend-book correlation, and the rejected ideas
+                    comparison, trend-book correlation, and the rejected ideas (threshold and
+                    trend_correlation are on v2; the rest were last run on the v1 deposit-rate anchor)
 data/raw/           downloaded sources (committed, so the backtest reruns offline)
 data/processed/     synthetic futures and the feature matrix (rebuilt by `futures` and `features`)
 results/            tables, Monte Carlo output, logs of every run; results/archive_0p5bp = the 0.5 bp account run
@@ -90,7 +103,7 @@ Rerunning the pipeline reproduces the committed results byte for byte (same data
 | Source | Series | Files in `data/raw` |
 |---|---|---|
 | [Bundesbank BBIG1](https://api.statistiken.bundesbank.de) | daily Euribor 1W–12M since Dec 1998; EONIA swap curve 2005–14 | `buba_euribor_*.csv`, `euribor_daily.csv`, `eonia_swap_daily.csv` |
-| [ECB Data Portal](https://data.ecb.europa.eu) | DFR, MRO, M1–M3, loans, MFI debt holdings, unemployment, AAA and all-issuer yield curves, CISS, Eurosystem assets, long-term yields | `ecb_*.csv` |
+| [ECB Data Portal](https://data.ecb.europa.eu) | DFR, MRO, EONIA, €STR, M1–M3, loans, MFI debt holdings, unemployment, AAA and all-issuer yield curves, CISS, Eurosystem assets, long-term yields | `ecb_*.csv` |
 | [Eurostat](https://ec.europa.eu/eurostat) | HICP headline and core (ECOICOP v2, continues past 2025), economic sentiment indicator | `eurostat_hicp.csv`, `eurostat_esi.csv` |
 | [policyuncertainty.com](https://www.policyuncertainty.com/europe_monthly.html) | European news-based policy uncertainty, EU and DE/FR/IT/ES | `epu_europe.xlsx` |
 | [FRED](https://fred.stlouisfed.org) | US 2-year yield, fed funds, 3-month bill, 2s10s | `fred_*.csv` |
@@ -103,12 +116,14 @@ yield curve, deposit-curve fallback before September 2004; converges exactly to 
 off the Euribor deposit curve alone embeds the 3M/6M tenor basis and creates a fake convergence drift (long-only
 Sharpe above 6 in 2013–19), which is how the construction was found. An OIS-based construction for 2005–14 agrees
 at monthly frequency (correlation 0.90) and is run as a sensitivity. Twenty days of real Eurex settlements show the
-synthetic is level-unbiased but noisy day to day.
+synthetic is about 3 bp below real settlements with an 8.5 bp, slowly decaying error (daily changes correlate 0.63
+with contracts matched by expiry month).
 
 ## Caveats
 
-1. Prices are synthetic before 2019; monthly measurement noise is about 10–20 bp.
-2. The override's evidence is two episodes (October 2008, the 2021–22 inflation shorts); out of sample it adds
-   about 0.02 Sharpe over the plain ECB rule.
-3. The feature menu was chosen with hindsight and about 70 trials were run; the deflated Sharpe accounts for 45 to 70.
-4. Three ECB cycles in the sample. Treat every month from September 2026 as the true hold-out.
+1. Prices are synthetic before 2019; the measured pricing error takes the one-contract Sharpe to about 0.7 to 1.1.
+2. The override is one episode (the 2021–22 inflation shorts) and adds nothing with size fixed per euro; its value
+   under a volatility target came from sizing. The five inputs were chosen after reading the review's factor table.
+3. About 105 looks have been taken at the same 224 months; the deflated Sharpe accounts for 50 and 105.
+4. Realised account volatility is 14%, above the nominal 10%, because size does not shrink in a crisis.
+5. Three ECB cycles in the sample. Treat every month from September 2026 as the true hold-out.

@@ -2,24 +2,32 @@
 import numpy as np
 import pandas as pd
 
-from .config import ANCHOR_THRESHOLD_GRID, OVERRIDE_THRESHOLD, RISK_GROUPS, THRESHOLD_PICK_START
+from .config import ANCHOR_THRESHOLD_GRID, OVERRIDE_THRESHOLD, RISK_GROUPS, SCORE_INPUTS, THRESHOLD_PICK_START
 from .features import PRIOR
 
 
 def follow_the_ecb(F):
-    """Long if the deposit facility rate was cut in the last three months, short if raised, else keep the previous position."""
+    """Long if the policy rates were cut in the last three months, short if raised, else keep the previous position.
+
+    Reads the sum of the MRO and deposit-rate changes, so a corridor change that moves only one of them (9 October
+    2008 put the DFR back to its July level the day after a 50 bp cut) does not hide the cut.
+    """
+    return (-np.sign(F["r_mro_chg3"] + F["r_dfr_chg3"])).replace(0, np.nan).ffill()
+
+
+def follow_the_ecb_dfr(F):
+    """The v1 anchor: the same rule on the deposit facility rate alone."""
     return (-np.sign(F["r_dfr_chg3"])).replace(0, np.nan).ffill()
 
 
-def prior_composite(F, cols, groups=("R", "M", "I", "S"), window=None):
-    """Mean of clipped z-scores times their theory sign, averaged within each group and then across groups.
+def signed_zscores(F, cols, window=None):
+    """Clipped z-scores times their theory sign, for the columns that have one.
 
     Z-scores use an expanding window (at least 36 months) unless ``window`` gives a rolling length.
-    Returns the composite score and the frame of group scores.
     """
     z = pd.DataFrame(index=F.index)
     for c in cols:
-        if PRIOR.get(c, 0) == 0 or c[0].upper() not in groups:
+        if PRIOR.get(c, 0) == 0:
             continue
         s = F[c]
         if window:
@@ -27,6 +35,20 @@ def prior_composite(F, cols, groups=("R", "M", "I", "S"), window=None):
         else:
             mean, sd = s.expanding(36).mean(), s.expanding(36).std()
         z[c] = ((s - mean) / sd).clip(-3, 3) * PRIOR[c]
+    return z
+
+
+def factor_score(F, cols=SCORE_INPUTS):
+    """The v2 risk-factor score: flat mean of the inputs' signed z-scores, so each input weighs the same."""
+    return signed_zscores(F, cols).mean(axis=1, skipna=False)
+
+
+def prior_composite(F, cols, groups=("R", "M", "I", "S"), window=None):
+    """Mean of clipped z-scores times their theory sign, averaged within each group and then across groups.
+
+    Returns the composite score and the frame of group scores.
+    """
+    z = signed_zscores(F, [c for c in cols if c[0].upper() in groups], window)
     group_scores = pd.DataFrame({
         g: z[[c for c in z.columns if c[0].upper() == g]].mean(axis=1)
         for g in groups if any(c[0].upper() == g for c in z.columns)
@@ -35,7 +57,7 @@ def prior_composite(F, cols, groups=("R", "M", "I", "S"), window=None):
 
 
 def risk_score(group_scores, groups=RISK_GROUPS):
-    """The frozen spec's risk-factor score: mean of the rates, inflation and sentiment group scores."""
+    """The v1 risk-factor score: mean of the rates, inflation and sentiment group scores."""
     return group_scores[list(groups)].mean(axis=1)
 
 

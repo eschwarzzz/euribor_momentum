@@ -125,6 +125,7 @@ def feature_matrix(M):
     # Rates (R): all daily, no lag
     F["r_dfr_chg3"] = M["dfr"] - M["dfr"].shift(3)
     F["r_dfr_chg6"] = M["dfr"] - M["dfr"].shift(6)
+    F["r_mro_chg3"] = M["mro"] - M["mro"].shift(3)       # anchor input only: no prior sign, not in the fitted models
     F["r_slope"] = M["eur12m"] - M["eur3m"]
     F["r_slope_chg3"] = F["r_slope"] - F["r_slope"].shift(3)
     F["r_12m_chg3"] = M["eur12m"] - M["eur12m"].shift(3)

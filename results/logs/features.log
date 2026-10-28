@@ -1,6 +1,4 @@
-/Users/user/Desktop/euribor_macro/euribor/features.py:97: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
-  assets.index = assets.index + pd.Timedelta(days=7)
-(334, 44)
+(334, 45)
 first month with a value, by feature:
 u_2y_minus_eu12m        1998-12-31
 r_slope                 1998-12-31
@@ -20,17 +18,18 @@ s_epu_chg3              1999-04-30
 i_hicp_chg3             1999-04-30
 r_dfr_chg3              1999-04-30
 m_ecb_bs_chg3           1999-04-30
-r_dfr_chg6              1999-07-31
+r_mro_chg3              1999-04-30
 m_m3_6m_ann             1999-07-31
+r_dfr_chg6              1999-07-31
 r_fut_mom12             1999-12-31
-d_nonea_yoy             2000-01-31
-d_ea_yoy                2000-01-31
-d_ea_minus_nonea        2000-01-31
-m_ecb_bs_yoy            2000-01-31
-m_m1_yoy                2000-01-31
-m_real_m1               2000-01-31
-m_m3_yoy                2000-01-31
 d_nonea_share_chg12     2000-01-31
+m_real_m1               2000-01-31
+m_m1_yoy                2000-01-31
+m_m3_yoy                2000-01-31
+m_ecb_bs_yoy            2000-01-31
+d_ea_minus_nonea        2000-01-31
+d_ea_yoy                2000-01-31
+d_nonea_yoy             2000-01-31
 d_bis_usd_share_chg12   2000-02-29
 d_bis_usd_yoy           2000-02-29
 d_bis_eur_yoy           2000-02-29
@@ -49,6 +48,7 @@ m_loans_yoy             2004-02-29
 date                   2026-08-31  2026-09-30
 r_dfr_chg3               0.250000    0.250000
 r_dfr_chg6               0.250000    0.500000
+r_mro_chg3               0.250000    0.250000
 r_slope                  0.410000    0.709000
 r_slope_chg3            -0.126000    0.305000
 r_12m_chg3               0.199000    0.603000

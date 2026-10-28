@@ -25,6 +25,12 @@ def read_ecb_series(name):
     return values.dropna().sort_index()
 
 
+def load_cash_rate():
+    """Overnight euro rate in percent: EONIA until €STR starts on 1 October 2019, €STR from then on."""
+    eonia, estr = read_ecb_series("eonia"), read_ecb_series("estr")
+    return pd.concat([eonia.loc[:estr.index[0] - pd.Timedelta(days=1)], estr])
+
+
 def read_monthly_csv(name, column=None):
     """Eurostat-style monthly file (date column YYYY-MM) stamped at month-end."""
     df = pd.read_csv(RAW / name)
@@ -84,8 +90,9 @@ def load_results_table():
 
 
 def core_feature_columns(F):
-    """The feature set the main models use: groups R, M, D, I, S without private loans and the TIC (US Treasury) block."""
-    return [c for c in F.columns if c[0] in "rmdis" and c != "m_loans_yoy" and not c.startswith("d_tic")]
+    """The feature set the main models use: groups R, M, D, I, S without private loans, the TIC (US Treasury) block and
+    the MRO change, which feeds the anchor only."""
+    return [c for c in F.columns if c[0] in "rmdis" and c not in ("m_loans_yoy", "r_mro_chg3") and not c.startswith("d_tic")]
 
 
 def sharpe_monthly(x):

@@ -13,9 +13,8 @@ import numpy as np
 import pandas as pd
 
 from euribor.backtest import daily_pnl
-from euribor.config import ECB_RULE, RESULTS
-from euribor.data import load_continuous, load_features, load_group_scores, load_positions
-from euribor.signals import frozen_spec, risk_score
+from euribor.config import ECB_RULE, RESULTS, SPEC
+from euribor.data import load_continuous, load_positions
 
 DEFAULT_PANEL = os.environ.get("TREND_PANEL", "/Users/user/Desktop/trend_risk/Trend Following Risk Manager/phase2/pnl_panel.csv")
 RATES = ["ZT", "ZF", "ZN", "UB"]
@@ -37,12 +36,10 @@ def main(panel_path=DEFAULT_PANEL):
     rng = np.random.default_rng(11)
     T = pd.read_csv(panel_path, index_col=0, parse_dates=True)
     fx = [c for c in T.columns if c.startswith("6")]
-    F, _, _ = load_features()
     cont = load_continuous()
-    P, G = load_positions(), load_group_scores()
-    ecb = P[ECB_RULE]
-    frozen = frozen_spec(ecb, risk_score(G))
-    account = pd.read_csv(RESULTS / "bt50k_daily.csv", index_col=0, parse_dates=True)["ret"]
+    P = load_positions()
+    ecb, frozen = P[ECB_RULE], P[SPEC]
+    account = pd.read_csv(RESULTS / "bt50k_daily.csv", index_col=0, parse_dates=True)["excess"]
     X = pd.DataFrame({"Whole trend book": T.sum(axis=1), "US rates sleeve": T[RATES].sum(axis=1), "Currency sleeve": T[fx].sum(axis=1),
                       "Everything except rates": T.drop(columns=RATES).sum(axis=1), "Frozen spec, 1 contract": daily_pnl(frozen, cont)[0],
                       "Frozen spec, EUR 50k account": account, "Follow-the-ECB, 1 contract": daily_pnl(ecb, cont)[0]}).loc[T.index[0]:"2026-08-31"].dropna()

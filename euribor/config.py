@@ -28,14 +28,24 @@ SUBPERIODS = {
     "2022-26 hikes+cuts": ("2022-01-01", OOS_END),
 }
 
-# The frozen specification: ECB rate momentum as the anchor, overridden by the R+I+S risk-factor score
-RISK_GROUPS = ("R", "I", "S")
+# The frozen specification, v2 (28 October 2026, after the 18 October review, fixed before any test): ECB rate momentum
+# on both policy rates as the anchor, overridden by a five-input risk-factor score; the account holds a fixed risk per euro.
+SCORE_INPUTS = ("r_dfr_chg3", "i_hicp", "i_core", "i_unemp_chg6", "s_ciss")   # policy persistence, mandate, persistence, slack, stress
 OVERRIDE_THRESHOLD = 0.5
+SIZING_VOL_END = "2007-12-31"    # account size = 10% of equity at the average 60-day volatility up to here (1999-2007, 49 bp/yr)
+# v1 (September 2026), kept for comparison: deposit-rate anchor, 23-series R+I+S group score, 10% volatility target
+RISK_GROUPS = ("R", "I", "S")
 ANCHOR_THRESHOLD_GRID = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.25, 1.5]
 THRESHOLD_PICK_START = "2002-01-31"   # the walk-forward threshold is re-picked each December on data from here
+N_TRIALS_TOTAL = 105             # looks at this sample: about 100 counted by the review, plus the v2 choices and their checks
 
 # Variant names used as keys in results/results_main.csv and results/monthly_positions.csv
-ECB_RULE = "BM follow-the-ECB (-sign of DFR 3M change)"
+ECB_RULE = "BM follow-the-ECB (-sign of MRO+DFR 3M change)"
+ECB_RULE_DFR = "BM follow-the-ECB, DFR only (v1 anchor)"
+SPEC = "Frozen spec v2: both-rates anchor + 5-input override"
+SPEC_V1 = "Spec v1: DFR anchor + 23-series R+I+S override"
+SPEC_V1_BOTH = "Spec v1 score on the both-rates anchor"
+SCORE5 = "Five-input score alone, sign"
 LONG_ONLY = "BM long-only 2nd contract"
 TREND_12M = "BM trend 12M"
 TREND_3M = "BM trend 3M (sign of 3M price change)"
